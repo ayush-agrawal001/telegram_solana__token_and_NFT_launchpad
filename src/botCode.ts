@@ -5,6 +5,7 @@ import walletCommands from "./solana_wallet/wallet.js";
 import imageUpload from "./solana_wallet/img_upload_arweave.js";
 import userModel from "./db/dbSchema.js";
 import dbFunction from "./db/dbFunction.js";
+import tokenCommands from "./solana_wallet/createTokenCommands.js";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
@@ -27,21 +28,19 @@ function botCommands(){
 
     
     walletCommands();
+    tokenCommands();
 
     imageUpload();
-    bot.on(message('text') , async (ctx) => {
-        console.log(ctx.message.text)
-        console.log(ctx.from.first_name)
-        dbFunction(String(ctx.from.username));
-        const replyMessage = await geminiReply(ctx.message.text, ctx.from.first_name);
-        ctx.reply(replyMessage, );
-    });
+    // bot.on(message('text') , async (ctx) => {
+    //     console.log(ctx.message.text)
+    //     console.log(ctx.from.first_name)
+    //     dbFunction(String(ctx.from.username));
+    //     const replyMessage = await geminiReply(ctx.message.text, ctx.from.first_name);
+    //     ctx.reply(replyMessage, );
+    // });
 
     bot.launch(); //This Uses polling
 
-    // Enable graceful stop
-    process.once('SIGINT', () => bot.stop('SIGINT'))
-    process.once('SIGTERM', () => bot.stop('SIGTERM'))
 }
 
 export default botCommands;

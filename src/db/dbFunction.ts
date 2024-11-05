@@ -62,5 +62,22 @@ async function getImageUse(userName : string){
     }
 }
 
-export {getImageUse, addUser};
+async function isWallet(userName : string) {
+    try {
+        await userModel.updateOne({userName : userName}, {$set : {isWallet : true}})
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+async function getIsWallet(userName : string) {
+    try {
+        const user = await userModel.findOne({userName : userName});
+        return user;
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+export {getImageUse, addUser, isWallet, getIsWallet};
 export default dbFunction;
