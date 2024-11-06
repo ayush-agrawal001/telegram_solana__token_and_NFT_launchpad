@@ -52,7 +52,6 @@ async function getImageUse(userName : string){
     try {
         const user = await userModel.findOne({userName : userName});
         if (!user) {
-            await addUser(userName);
             return -1;
         }else if(user){
             return user.imgUses;

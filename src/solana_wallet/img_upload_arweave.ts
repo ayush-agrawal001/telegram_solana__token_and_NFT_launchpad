@@ -1,7 +1,7 @@
 import { message } from "telegraf/filters";
 import { bot } from "../botCode";
 import axios from "axios";
-import dbFunction, { addUser, getImageUse } from "../db/dbFunction";
+import dbFunction, { getImageUse } from "../db/dbFunction";
 
 export default function imageUpload(){
     bot.command("uploadToArweave", async (ctx) => {

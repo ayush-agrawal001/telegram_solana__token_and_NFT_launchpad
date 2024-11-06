@@ -4,7 +4,7 @@ import geminiReply from "./geminiReply.js";
 import walletCommands from "./solana_wallet/wallet.js";
 import imageUpload from "./solana_wallet/img_upload_arweave.js";
 import userModel from "./db/dbSchema.js";
-import dbFunction from "./db/dbFunction.js";
+import dbFunction, { addUser } from "./db/dbFunction.js";
 import tokenCommands from "./solana_wallet/createTokenCommands.js";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
@@ -14,8 +14,9 @@ function botCommands(){
         throw Error("No Bot Api key found")
     }
 
-    bot.command("start", (ctx) => {
+    bot.command("start", async (ctx) => {
         // console.log(ctx);
+        await addUser(ctx.from.username!);
         bot.telegram.sendMessage(ctx.chat.id, 'Hello there! Welcome to the Ginie telegram bot.I respond to /createWallet. Please try it');
     })
 
@@ -28,16 +29,10 @@ function botCommands(){
 
     
     walletCommands();
+    
     tokenCommands();
 
     imageUpload();
-    // bot.on(message('text') , async (ctx) => {
-    //     console.log(ctx.message.text)
-    //     console.log(ctx.from.first_name)
-    //     dbFunction(String(ctx.from.username));
-    //     const replyMessage = await geminiReply(ctx.message.text, ctx.from.first_name);
-    //     ctx.reply(replyMessage, );
-    // });
 
     bot.launch(); //This Uses polling
 

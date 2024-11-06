@@ -1,120 +1,239 @@
-import { clusterApiUrl, Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import walletCommands, { userKeypair } from "./wallet";
-import { createMint, ExtensionType, getMinimumBalanceForRentExemptMint, getMintLen } from "@solana/spl-token"
-import { airdropIfRequired, getExplorerLink } from "@solana-developers/helpers";
+import { Keypair, PublicKey} from "@solana/web3.js";
+import walletCommands, { balanceFromWallet, confirmWalletDeduction, userKeypair } from "./wallet";
 import { bot } from "../botCode";
-import { addUser, getIsWallet } from "../db/dbFunction";
+import { getIsWallet } from "../db/dbFunction";
 import { Context } from "telegraf";
 import { message } from "telegraf/filters";
+import { mintingToken } from "./createToken";
+import { config } from "dotenv";
 
-async function creatingTokenMint(){
-    const conn = new Connection("http://127.0.0.1:8899");
-    
-    await  airdropIfRequired(conn, userKeypair!.publicKey, 10 * LAMPORTS_PER_SOL, 1 * LAMPORTS_PER_SOL);
-    
-    const balance = await conn.getBalance(userKeypair!.publicKey);
-    const mintLength = getMintLen([ExtensionType.MetadataPointer]);  
-    const minimumRequired = await conn.getMinimumBalanceForRentExemption(mintLength);
-    
-    
-    const tokenMint = await createMint(conn, userKeypair!, userKeypair!.publicKey, null , 9); //Mint account
-    const link = getExplorerLink("address", tokenMint.toString(), 'localnet');
-    console.log(link);
-    return link;
+const devUserKeypair = Keypair.fromSecretKey(new Uint8Array(process.env.PVT_KEY!))
+
+const isValidUrl = (urlString : string)=> {
+    var urlPattern = new RegExp('^(https?:\\/\\/)?'+ // validate protocol
+  '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // validate domain name
+  '((\\d{1,3}\\.){3}\\d{1,3}))'+ // validate OR ip (v4) address
+  '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // validate port and path
+  '(\\?[;&a-z\\d%_.~+=-]*)?'+ // validate query string
+  '(\\#[-a-z\\d_]*)?$','i'); // validate fragment locator
+return !urlPattern.test(urlString);
 }
 
-async function getMetadataFromUser(ctx : Context) {
-    let tokenName : string;
-    let symbol : string;
-    let description : string;
-    let decimals : number;
-    let imgUrl : string;
-    let imageBuffer : Buffer[];
+export interface TokenInfo {
+    tokenName : string;
+    symbol : string;
+    description : string;
+    decimals : number;
+    imgUrl : string;
+    imageBuffer : Buffer[];
+}
+let stage = 1;
+let tokenInfo : TokenInfo;
+tokenInfo = {
+    tokenName: "",
+    symbol: "",
+    description: "",
+    decimals: 9,
+    imgUrl: "",
+    imageBuffer: []
+};
 
-    await ctx.reply("Enter the name for your token (e.g., 'MyToken').(Not more then 32 characters)");
-    let stopEaring = false;
-    bot.on(message("text"), ctx => {
-        if (stopEaring === false) {
-            if (ctx.message.text.length > 32) {
-                return ctx.reply("Please enter Token name less then 32 characters");
-            }
-            tokenName = ctx.message.text;
-            ctx.reply("Enter short symbol or ticker you would like to give to your token? (Please reply in text under 10 characters only)");  
-            stopEaring = true;
+async function getMetadataFromUser(ctx : Context) {  
+    await ctx.reply("Are you sure you want to create token ?", {
+        reply_markup : {
+            inline_keyboard : [
+                [{text : "Yes", callback_data : "YesCreateToken"}, {text : "No", callback_data : "NoDontCreateToken"}]
+            ]
         }
     })
 
-    console.log(stopEaring);
+    bot.action("NoDontCreateToken", ctx => {
+        ctx.reply("ok 🥲👍");
+        ctx.answerCbQuery("ok 🥲👍");
+    })
 
-    // if (stopEaring === true) {
-    //     bot.on(message("text"), ctx => {
-    //         if (ctx.message.text.length > 10) {
-    //             ctx.reply("Please enter symbol less then 10 characters");
-    //             return;
-    //         }
-    //         symbol = ctx.message.text;
-    //         ctx.reply("Add a short description for your token. What makes it unique?");
-    //         bot.on(message("text"), ctx => {
-    //             if (ctx.message.text.length > 200) {
-    //                 ctx.answerCbQuery("Please enter description less then 200 characters");
-    //                 return;
-    //             }
-    //             description = ctx.message.text;
-    //             ctx.reply("How many decimal places should your token support? (Typically between 0-18)");
-    //             bot.on(message("text"), ctx => {
-    //                 if (!parseInt(ctx.message.text)) {
-    //                     ctx.reply("Not a number");
-    //                 }
-    //             })
-    //         })
-    //     })
-    // }
+    bot.action("YesCreateToken", async (ctx) => {
+        await ctx.reply("Enter the name for your token (e.g., 'MyToken').(Not more then 32 characters)");
+        await ctx.answerCbQuery("Let's Go");
+        bot.on(message("text"), async (ctx) => {
+            const inputText = ctx.message.text;
+
+        function switchCase(condition : boolean, messageText : string, PrevWarningText : string, goBackType : string, goBackCaseNo : number, upgradeTo : number){
+            try {
+                
+                if (condition) {
+                    return ctx.reply(PrevWarningText);
+                }
+                setTimeout(async () => await ctx.reply(messageText, {
+                    reply_markup : {
+                        inline_keyboard : [
+                            [{text : "Go Back", callback_data : `goBack${goBackCaseNo}`}]
+                        ]
+                    }
+                }), 100);
+                stage = upgradeTo;
+                bot.action(`goBack${goBackCaseNo}`, (ctx) => {
+                    stage -= 1;
+                    ctx.reply(`Enter ${goBackType} again`, ((goBackCaseNo !== 1) ? {
+                        reply_markup : {
+                            inline_keyboard : [
+                                [{text : "Go Back", callback_data : `goBack${goBackCaseNo-1}`}]
+                            ]
+                        }
+                    } : {}));
+                    ctx.answerCbQuery(`Enter ${goBackType} again`);
+                })
+            } catch (error) {
+                console.log(error);
+            }
+        }
+
+        switch (stage) {
+            case 1: // Step 1: Get token name
+                switchCase(
+                    (inputText.length > 32), 
+                    "Enter a short symbol or ticker for your token (under 10 characters).",
+                    "Please enter a token name with less than 32 characters.",
+                    "name",
+                    1,
+                    2
+                )
+                tokenInfo.tokenName = inputText;
+                break;
+
+            case 2: // Step 2: Get symbol
+                switchCase(
+                    (inputText.length > 10),
+                    "Add a short description for your token. What makes it unique? (Under 200 characters)",
+                    "Please enter a symbol with less than 10 characters.",
+                    "symbol",
+                    2,
+                    3
+                )
+                tokenInfo.symbol = inputText;
+                break;
+
+            case 3: // Step 3: Get description
+                switchCase(
+                    (inputText.length > 200),
+                    "How many decimal places should your token support? (Typically between 0-18)",
+                    "Please enter a description with less than 200 characters.",
+                    "Description",
+                    3,
+                    4
+                )
+                tokenInfo.description = inputText;
+                break;
+
+            case 4: // Step 4: Get decimals
+                const decimalsInput = parseInt(inputText);
+                switchCase(
+                    (isNaN(decimalsInput) || decimalsInput < 0 || decimalsInput > 18),
+                    "Please enter permanent storage URL for the Token image.",
+                    "Please enter a valid number between 0 and 18 for decimal places.",
+                    "Decimal",
+                    4,
+                    5
+                )
+                tokenInfo.decimals = decimalsInput;
+                break;
+            case 5: // Step 5: Get Image URL
+                switchCase(
+                    isValidUrl(inputText),
+                    ".",
+                    "Please Enter a valid URL",
+                    "Image URL",
+                    5,
+                    6
+                )
+                !isValidUrl(inputText) ? await confirmWalletDeduction(ctx, tokenInfo) : {};
+                tokenInfo.imgUrl = inputText;
+                console.log(tokenInfo);
+                break;
+
+            case 6:
+                ctx.reply("We got your metadata!!!");
+                break;
+        }
+    });
+    })
 }
 
 async function tokenCommands() {
     bot.command("createToken",async (ctx) => {
-        await addUser(ctx.from.username!);
-        
+        const balance = await balanceFromWallet(devUserKeypair.publicKey);
+        if (balance === 0) {
+            ctx.reply("This Commands required SOL on your account. Start with airdroping some SOL in :-")
+            setTimeout(() => ctx.reply(`\`${userKeypair.publicKey}\``, {parse_mode : 'MarkdownV2'}), 1000);
+            return;
+        }
         await getMetadataFromUser(ctx);
+    })
 
-        ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
-            reply_markup : {
-                inline_keyboard : [
-                    [{text : "Yes", callback_data : "yesCreate"}, {text : "No", callback_data : "exitCommand"}],
-                ]
-            }
-        })
+    bot.command("mintToken", ctx => {
+        ctx.reply(`💰 Mint Token Destination
+Please specify the account you’d like to mint the token to:`, {
+    reply_markup : {
+        inline_keyboard : [
+            [{text : "🔹 Mint to Current Account", callback_data : "existAc"}],
+            [{text : "🔹 Mint to External Account (via Public Key)", callback_data : "externalAc"}]
+        ]
+    }
+})
 
-        bot.action("yesCreate", async (ctx) => {
-            ctx.reply(`⚠️ This may take a moment—so while you wait, check out this fun fact about patience!
+    bot.action("existAc", async (ctx) => {
+        ctx.reply("💸 How much would you like to mint?");
+        let isEaring = true;
+        if (isEaring) {
+            bot.on(message("text"), async (ctx) => {
+                const mintAmount = parseInt(ctx.message.text);
+                if (isNaN(mintAmount) || mintAmount < 0) {
+                    return ctx.reply("Please Enter a valid number");
+                }
+                const isMinted = await mintingToken(tokenInfo.decimals, mintAmount);
+                if (isMinted) {
+                    ctx.reply(`🎉 Congratulations!
+You’ve successfully minted ${tokenInfo.tokenName} tokens! 🎊`)
+                }else if(!isMinted){
+                    ctx.reply(`⚠️ Minting Error
+Failed to mint ${tokenInfo.tokenName}. Please check your inputs and try again.`);
+                }
+                isEaring = false;
+            })
+        }
+    })
+    bot.action("externalAc", async (ctx) => {
+        ctx.reply("🔗 Enter the public address of the recipient to send the token:")
 
-Did you know that the average bamboo plant takes about five years to start growing above ground, but once it does, it can grow up to three feet in a single day? Patience is like that—sometimes, the best things take a little time, but the payoff is worth the wait!
-
-So remember, a little patience now will soon reward you with your favorite token! 🌱💫`);
-            const user = await getIsWallet(ctx.from.username!);
-            if (user?.isWallet === false) {
-                await ctx.reply("No wallet account exist", {
-                    reply_markup : {
-                        inline_keyboard : [
-                            [{text : "Generate Wallet", callback_data : "generate"}]
-                        ]
-                    }
-                })
-                bot.action("generate", () => walletCommands());
-            }else{
-                console.log("break");
-            }
-            await creatingTokenMint();
-            const link = await creatingTokenMint();
-            ctx.reply(link)
-        });
-
-        bot.action("exitCommand", (ctx) => {
-            ctx.reply("Ok 🥲👍");
-            ctx.answerCbQuery("Ok 🥲👍");
-        })
-
-
+        let isKeyEaring = true;
+        let pubKey : PublicKey;
+        if (isKeyEaring) {
+            bot.on(message("text"), ctx => {
+                pubKey = new PublicKey(ctx.message.text);
+                console.log(pubKey)
+                isKeyEaring = false;
+                ctx.reply("💸 How much would you like to mint?");
+            })
+        }
+        let isEaring = true;
+        if (isEaring) {
+            bot.on(message("text"), async (ctx) => {
+                const mintAmount = parseInt(ctx.message.text);
+                if (isNaN(mintAmount) || mintAmount < 0) {
+                    return ctx.reply("Please Enter a valid number");
+                }
+                const isMinted = await mintingToken(tokenInfo.decimals, mintAmount, pubKey);
+                if (isMinted) {
+                    ctx.reply(`🎉 Congratulations!
+You’ve successfully minted ${tokenInfo.tokenName} tokens! 🎊`)
+                }else if(!isMinted){
+                    ctx.reply(`⚠️ Minting Error
+Failed to mint ${tokenInfo.tokenName}. Please check your inputs and try again.`);
+                }
+                isEaring = false;
+            })
+        }
+    })
     })
 
 }
