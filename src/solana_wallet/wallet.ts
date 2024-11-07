@@ -1,4 +1,4 @@
-import { clusterApiUrl, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { clusterApiUrl, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { bot } from "../botCode";
 import { generateMnemonic, mnemonicToSeedSync } from "bip39";
 import { derivePath } from "ed25519-hd-key";
@@ -6,7 +6,8 @@ import { addUser, getIsWallet, isWallet } from "../db/dbFunction";
 import { Context } from "telegraf";
 import pTimeout from "p-timeout";
 import { creatingTokenMint } from "./createToken";
-import { TokenInfo } from "./createTokenCommands";
+import { TokenInfo } from "./getMetadataFromUser";
+import { conn } from "..";
 
 function walletGenerate(){
     const mnemonic = generateMnemonic();
@@ -19,7 +20,6 @@ function walletGenerate(){
 }
 
 export async function balanceFromWallet(userPubkey : PublicKey) : Promise<number> {    
-        const conn = new Connection(clusterApiUrl('devnet'));
         const balance = await conn.getBalance(userPubkey);
         return balance;
 }

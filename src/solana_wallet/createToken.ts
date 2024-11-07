@@ -1,25 +1,20 @@
 import { getExplorerLink } from "@solana-developers/helpers";
 import { createMint, ExtensionType, getMintLen, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
-import { clusterApiUrl, Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
+import { clusterApiUrl, Keypair, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { createCreateMetadataAccountV3Instruction, dataBeet } from "@metaplex-foundation/mpl-token-metadata"
-import { TokenInfo } from "./createTokenCommands";
+import { TokenInfo } from "./getMetadataFromUser";
 import metaDataJsonUrl from "./metadataJsonUpload";
 import { config } from "dotenv";
-
-const devUserKeypair = Keypair.fromSecretKey(new Uint8Array(process.env.PVT_KEY!))
-
+import { conn, devUserKeypair } from "..";
 
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
     "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
 );
 
-const conn = new Connection(clusterApiUrl('devnet'));
-
 let tokenMint : PublicKey;
 
 export async function creatingTokenMint(tokenMetadata : TokenInfo){
-    // const conn = new Connection("http://127.0.0.1:8899");
-    
+
     const result = await metaDataJsonUrl(tokenMetadata);
     const metURL = await result.cloud.url;
 
@@ -77,6 +72,7 @@ export async function creatingTokenMint(tokenMetadata : TokenInfo){
     return {link, minimumRequired};
 }
 let devTokenMint = new PublicKey("AJa49DzfkEA6JJf4jmhSkLTvsFbmv116wsv7JW9eiVWX");
+
 export async function mintingToken(decimal : number, mintAmount : number, toUserKeypair? : PublicKey) {
     
     try{const AtokenAccount = await getOrCreateAssociatedTokenAccount( //Creating ATA on-chain

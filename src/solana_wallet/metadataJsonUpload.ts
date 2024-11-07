@@ -1,5 +1,5 @@
 import axios from "axios";
-import { TokenInfo } from "./createTokenCommands";
+import { TokenInfo } from "./getMetadataFromUser";
 import { config } from "dotenv";
 
 export default async function metaDataJsonUrl(tokenMetadata : TokenInfo) {
