@@ -5,9 +5,10 @@ import { derivePath } from "ed25519-hd-key";
 import { addUser, getIsWallet, isWallet } from "../db/dbFunction";
 import { Context } from "telegraf";
 import pTimeout from "p-timeout";
-import { creatingTokenMint } from "./createToken";
-import { TokenInfo } from "./getMetadataFromUser";
 import { conn } from "..";
+import { creatingTokenMint } from "./token/createToken";
+import { tokenInfo, TokenInfo } from "./token/getMetadataFromUser";
+import createNFTCollection, { NFTInfo } from "./NFTs/createNFTCollection";
 
 function walletGenerate(){
     const mnemonic = generateMnemonic();
@@ -87,7 +88,12 @@ ${walletInfo.mnemonic}`, {
 
 }
 
-export async function confirmWalletDeduction(ctx : Context, tokenMetadata : TokenInfo) {
+interface nftOrToken {
+    nft? : boolean, 
+    token? : boolean
+}
+
+export async function confirmWalletDeduction({ nft , token } : nftOrToken ,ctx : Context, tokenMetadata : TokenInfo | NFTInfo) {
     ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
         reply_markup : {
             inline_keyboard : [
@@ -111,14 +117,26 @@ export async function confirmWalletDeduction(ctx : Context, tokenMetadata : Toke
         }else{
             console.log("break");
         }
-        try {
-            const result = await pTimeout(creatingTokenMint(tokenMetadata), {milliseconds : 90000});
-            ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
-            ctx.reply(result.link)
-            ctx.reply("Operation completed successfully.");
-        } catch (error) {
-            console.error("Error during operation:", error);
-            ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+        if (token) {
+            try {
+                const result = await pTimeout(creatingTokenMint(tokenMetadata as TokenInfo), {milliseconds : 90000});
+                ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                ctx.reply(result.link)
+                ctx.reply("Operation completed successfully.");
+            } catch (error) {
+                console.error("Error during operation:", error);
+                ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+            }
+        }else if(nft){
+            try {
+                const result = await pTimeout(createNFTCollection(tokenMetadata), {milliseconds : 90000});
+                ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                ctx.reply(result.link)
+                ctx.reply("Operation completed successfully.");
+            } catch (error) {
+                console.error("Error during operation:", error);
+                ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+            }
         }
     });
 

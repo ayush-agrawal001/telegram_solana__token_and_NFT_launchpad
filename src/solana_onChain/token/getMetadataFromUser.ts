@@ -1,6 +1,6 @@
 import { message } from "telegraf/filters";
-import { bot } from "../botCode";
-import { confirmWalletDeduction } from "./wallet";
+import { bot } from "../../botCode";
+import { confirmWalletDeduction } from "../wallet";
 import { Context } from "telegraf";
 
 const isValidUrl = (urlString : string)=> {
@@ -19,7 +19,6 @@ export interface TokenInfo {
     description : string;
     decimals : number;
     imgUrl : string;
-    imageBuffer : Buffer[];
 }
 let stage = 1;
 export let tokenInfo : TokenInfo;
@@ -29,7 +28,6 @@ tokenInfo = {
     description: "",
     decimals: 9,
     imgUrl: "",
-    imageBuffer: []
 };
 
 export async function getMetadataFromUser(ctx : Context) {  
@@ -134,13 +132,13 @@ export async function getMetadataFromUser(ctx : Context) {
             case 5: // Step 5: Get Image URL
                 switchCase(
                     isValidUrl(inputText),
-                    ".",
+                    "Reupload the Image",
                     "Please Enter a valid URL",
                     "Image URL",
                     5,
                     6
                 )
-                !isValidUrl(inputText) ? await confirmWalletDeduction(ctx, tokenInfo) : {};
+                !isValidUrl(inputText) ? await confirmWalletDeduction({token : true},ctx, tokenInfo) : {};
                 tokenInfo.imgUrl = inputText;
                 console.log(tokenInfo);
                 break;

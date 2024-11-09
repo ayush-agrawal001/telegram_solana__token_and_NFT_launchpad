@@ -1,15 +1,21 @@
 import { getExplorerLink } from "@solana-developers/helpers";
 import { createMint, ExtensionType, getMintLen, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 import { clusterApiUrl, Keypair, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
-import { createCreateMetadataAccountV3Instruction, dataBeet } from "@metaplex-foundation/mpl-token-metadata"
+import { createMetadataAccountV3, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata"
 import { TokenInfo } from "./getMetadataFromUser";
-import metaDataJsonUrl from "./metadataJsonUpload";
+import metaDataJsonUrl from "../imageUpload/metadataJsonUpload";
 import { config } from "dotenv";
-import { conn, devUserKeypair } from "..";
+import { conn, devUserKeypair } from "../../index";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
+import { createNoopSigner } from "@metaplex-foundation/umi";
+import { publicKey as umiPublicKey } from "@metaplex-foundation/umi";
+import { toWeb3JsInstruction } from "@metaplex-foundation/umi-web3js-adapters";
 
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
     "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
 );
+
+const umi = createUmi(clusterApiUrl("devnet")).use(mplTokenMetadata());
 
 let tokenMint : PublicKey;
 
@@ -42,24 +48,22 @@ export async function creatingTokenMint(tokenMetadata : TokenInfo){
 
     const transaction = new Transaction();
 
-    const metadataAccountInstruction = createCreateMetadataAccountV3Instruction(
+    const metadataAccountInstruction = createMetadataAccountV3(umi,
         {
-            metadata: metaDataPDA,
-            mint : tokenMint,
-            mintAuthority : devUserKeypair.publicKey,
-            payer : devUserKeypair.publicKey,
-            updateAuthority : devUserKeypair.publicKey
+            mint : umiPublicKey(tokenMint),
+            mintAuthority : createNoopSigner(umiPublicKey(devUserKeypair.publicKey)),
+            metadata: umiPublicKey(metaDataPDA),
+            isMutable : true,
+            payer : createNoopSigner(umiPublicKey(devUserKeypair.publicKey)),
+            updateAuthority : umiPublicKey(devUserKeypair.publicKey),
+            collectionDetails : null,
+            data : metaData,
         },
-        {
-            createMetadataAccountArgsV3 : {
-                collectionDetails : null,
-                data : metaData,
-                isMutable : true
-            }
-        }
-    )
-    
-    transaction.add(metadataAccountInstruction); //Metadata and PDA completed
+    ).getInstructions();
+
+    const web3jsinstruction = toWeb3JsInstruction(metadataAccountInstruction[0])
+
+    transaction.add(web3jsinstruction); //Metadata and PDA completed
 
     const transactionSignature = await sendAndConfirmTransaction(
         conn,
@@ -71,6 +75,7 @@ export async function creatingTokenMint(tokenMetadata : TokenInfo){
     console.log(link);
     return {link, minimumRequired};
 }
+
 let devTokenMint = new PublicKey("AJa49DzfkEA6JJf4jmhSkLTvsFbmv116wsv7JW9eiVWX");
 
 export async function mintingToken(decimal : number, mintAmount : number, toUserKeypair? : PublicKey) {

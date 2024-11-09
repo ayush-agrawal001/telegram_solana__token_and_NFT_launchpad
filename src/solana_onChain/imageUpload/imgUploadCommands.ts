@@ -1,7 +1,8 @@
 import { message } from "telegraf/filters";
-import { bot } from "../botCode";
+import { bot } from "../../botCode";
 import axios from "axios";
-import dbFunction, { getImageUse } from "../db/dbFunction";
+import dbFunction, { getImageUse } from "../../db/dbFunction";
+import { metadataImageUrl } from "./imageUpload";
 
 export default function imageUpload(){
     bot.command("uploadToArweave", async (ctx) => {
@@ -41,16 +42,9 @@ For optimal quality and seamless integration with decentralized platforms, pleas
                 const response = await axios({url : String(url), responseType : 'stream'});
                 const imgBuffer = await response.data._readableState.buffer;
                 
-                const uploadResponse = await axios.post('https://api.akord.com/files', imgBuffer[0], {
-                headers : {
-                    'Accept': 'application/json',
-                    'Api-Key': String(process.env.AKORD_API_KEY),
-                    'Content-Type': 'image/png'
-                }})
-
-                const result = await uploadResponse.data;
+                const result = await metadataImageUrl(imgBuffer[0])
                 
-                if (uploadResponse.status === 200 || uploadResponse.status == 201) {
+                if (result) {
                     ctx.reply("Here is your image link");
                     ctx.reply(`\` ${result.tx.gatewayUrls[0]} \``, {parse_mode : 'MarkdownV2'});
                     console.log(result.tx.gatewayUrls);

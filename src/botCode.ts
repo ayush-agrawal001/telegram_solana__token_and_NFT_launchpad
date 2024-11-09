@@ -1,12 +1,12 @@
 import { Telegraf } from "telegraf";
 import { message } from "telegraf/filters"
 import geminiReply from "./geminiReply.js";
-import walletCommands from "./solana_wallet/wallet.js";
-import imageUpload from "./solana_wallet/img_upload_arweave.js";
 import userModel from "./db/dbSchema.js";
 import dbFunction, { addUser } from "./db/dbFunction.js";
-import tokenCommands from "./solana_wallet/createTokenCommands.js";
-
+import walletCommands from "./solana_onChain/wallet.js";
+import tokenCommands from "./solana_onChain/token/createTokenCommands.js";
+import imageUpload from "./solana_onChain/imageUpload/imgUploadCommands.js";
+import createNFTcommands from "./solana_onChain/NFTs/createNFTCommands.js";
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
 function botCommands(){
@@ -31,6 +31,8 @@ function botCommands(){
     walletCommands();
     
     tokenCommands();
+
+    createNFTcommands()
 
     imageUpload();
 

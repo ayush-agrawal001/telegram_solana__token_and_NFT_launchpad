@@ -1,8 +1,11 @@
 import axios from "axios";
-import { TokenInfo } from "./getMetadataFromUser";
+import { TokenInfo } from "../token/getMetadataFromUser";
 import { config } from "dotenv";
+import { NFTInfo } from "../NFTs/createNFTCollection";
 
-export default async function metaDataJsonUrl(tokenMetadata : TokenInfo) {
+config();
+
+export default async function metaDataJsonUrl(tokenMetadata : TokenInfo | NFTInfo) {
     const data = {
         name : tokenMetadata.tokenName,
         symbol : tokenMetadata.symbol,
