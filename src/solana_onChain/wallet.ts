@@ -9,6 +9,7 @@ import { conn } from "..";
 import { creatingTokenMint } from "./token/createToken";
 import { tokenInfo, TokenInfo } from "./token/getMetadataFromUser";
 import createNFTCollection, { NFTInfo } from "./NFTs/createNFTCollection";
+import createRegularNFT from "./NFTs/createNFT";
 
 function walletGenerate(){
     const mnemonic = generateMnemonic();
@@ -89,11 +90,12 @@ ${walletInfo.mnemonic}`, {
 }
 
 interface nftOrToken {
-    nft? : boolean, 
+    nftCollectible? : boolean, 
     token? : boolean
+    nftRegular? : boolean
 }
 
-export async function confirmWalletDeduction({ nft , token } : nftOrToken ,ctx : Context, tokenMetadata : TokenInfo | NFTInfo) {
+export async function confirmWalletDeduction({ nftCollectible, nftRegular , token } : nftOrToken ,ctx : Context, tokenMetadata : TokenInfo | NFTInfo) {
     ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
         reply_markup : {
             inline_keyboard : [
@@ -127,9 +129,19 @@ export async function confirmWalletDeduction({ nft , token } : nftOrToken ,ctx :
                 console.error("Error during operation:", error);
                 ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
             }
-        }else if(nft){
+        }else if(nftCollectible){
             try {
                 const result = await pTimeout(createNFTCollection(tokenMetadata), {milliseconds : 90000});
+                ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                ctx.reply(result.link)
+                ctx.reply("Operation completed successfully.");
+            } catch (error) {
+                console.error("Error during operation:", error);
+                ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+            }
+        }else if (nftRegular) {
+            try {
+                const result = await pTimeout(createRegularNFT(tokenMetadata), {milliseconds : 90000});
                 ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
                 ctx.reply(result.link)
                 ctx.reply("Operation completed successfully.");

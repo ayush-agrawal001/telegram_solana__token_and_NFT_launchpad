@@ -3,6 +3,7 @@ import { bot } from "../../botCode";
 import axios from "axios";
 import dbFunction, { getImageUse } from "../../db/dbFunction";
 import { metadataImageUrl } from "./imageUpload";
+import sharp from "sharp";
 
 export default function imageUpload(){
     bot.command("uploadToArweave", async (ctx) => {
@@ -12,7 +13,7 @@ export default function imageUpload(){
             imageUse = await getImageUse(String(ctx.from.username));
             // console.log(count += 1)
         }
-        if (imageUse! <= 5) {
+        if (true) {
         ctx.reply("📸 Please send an image that is less than 5 MB.");
         ctx.reply(`Note for Image Upload:
             
@@ -27,33 +28,47 @@ For optimal quality and seamless integration with decentralized platforms, pleas
             
         try {
             bot.on(message("photo"), async (ctx) => {
-                
                 const files = ctx.update.message.photo[ctx.update.message.photo.length - 1].file_id;
                 const filesInfo = ctx.update.message.photo[ctx.update.message.photo.length - 1];
-                console.log(filesInfo)
-    
-                if (filesInfo.file_size! > 2*(Math.pow(10, 6))) {
-                    ctx.reply("Please Upload less then 5 MB Image");
+
+                console.log(filesInfo);
+
+                if (filesInfo!.file_size! > 5 * (Math.pow(10, 6))) {
+                    ctx.reply("Please upload an image smaller than 5 MB.");
                     return;
                 }
 
-                const url = await ctx.telegram.getFileLink(files);
-                // console.log(url);
-                const response = await axios({url : String(url), responseType : 'stream'});
-                const imgBuffer = await response.data._readableState.buffer;
                 
-                const result = await metadataImageUrl(imgBuffer[0])
+                try {
+                    const url = await ctx.telegram.getFileLink(files);
+                    console.log(url.href);
                 
-                if (result) {
-                    ctx.reply("Here is your image link");
-                    ctx.reply(`\` ${result.tx.gatewayUrls[0]} \``, {parse_mode : 'MarkdownV2'});
-                    console.log(result.tx.gatewayUrls);
-                    await dbFunction(String(ctx.from.username), {img : true});
-                }else{
-                    // console.log(response.status);
-                    ctx.reply("Please try later after some try")
+                    const response = await axios({ url: String(url), responseType: 'arraybuffer' });
+                    const imgBuffer = Buffer.from(response.data);
+                
+                    const processedImageBuffer = await sharp(imgBuffer)
+                        .resize({ width: 1024 }) // size
+                        .jpeg({ quality: 80 }) // quality
+                        .toBuffer();
+                
+                    const result = await metadataImageUrl(processedImageBuffer);
+                
+                    if (result) {
+                        ctx.reply("Here is your image link");
+                        ctx.reply(`[Click to open in browser](${result.tx.gatewayUrls[0]})`, { parse_mode: 'MarkdownV2' });
+                        ctx.reply(`\`${result.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
+                        console.log(result.tx.gatewayUrls);
+                
+                        // Update database with image status
+                        await dbFunction(String(ctx.from.username), { img: true });
+                    } else {
+                        ctx.reply("Please try again later.");
+                    }
+                
+                } catch (error) {
+                    console.error("Error processing image:", error);
+                    ctx.reply("An error occurred while processing the image. Please try again later.");
                 }
-
             })
             
         } catch (error) {

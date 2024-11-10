@@ -14,7 +14,7 @@ import { clusterApiUrl, Keypair } from "@solana/web3.js";
 
 config();
 const umi = createUmi(clusterApiUrl("devnet")); // To initialize umi.
-const devUserKeypair = Keypair.fromSecretKey(new Uint8Array());
+const devUserKeypair = Keypair.fromSecretKey(new Uint8Array([105, 136, 100, 179, 134, 121, 44, 196, 72, 166, 132, 241, 129, 226, 91, 243, 187, 8, 190, 240, 28, 108, 207, 9, 206, 102, 113, 235, 166, 2, 205, 8, 33, 55, 168, 2, 75, 165, 70, 86, 170, 30, 230, 172, 132, 107, 56, 192, 57, 152, 214, 40, 117, 27, 152, 221, 31, 43, 126, 119, 78, 132, 20, 231]));
 const umiKeyPair = umi.eddsa.createKeypairFromSecretKey(devUserKeypair.secretKey);
 
 umi
@@ -29,6 +29,7 @@ export interface NFTInfo {
     symbol : string,
     description : string,
     imgUrl : any,
+    collectibleId? : string
 }
 
 export default async function createNFTCollection(nftInfo : NFTInfo){
@@ -55,14 +56,13 @@ export default async function createNFTCollection(nftInfo : NFTInfo){
     async function jsonUrl() {
         
         const data : NFTInfo = {
-            tokenName : nftInfo.tokenName || "",
-            symbol : nftInfo.symbol || "",
-            description : nftInfo.description || "",
-            imgUrl : nftInfo.imgUrl || "",
+            tokenName : nftInfo.tokenName,
+            symbol : nftInfo.symbol,
+            description : nftInfo.description,
+            imgUrl : nftInfo.imgUrl,
         }
 
         const result = await metaDataJsonUrl(data);
-        // console.log(await result)
         return await result.cloud.url
     }
 
@@ -71,7 +71,7 @@ export default async function createNFTCollection(nftInfo : NFTInfo){
     const collectionMint = generateSigner(umi);
     await createNft(umi, {
         mint : collectionMint,
-        name : "ayush collection",
+        name : nftInfo.tokenName,
         uri,
         updateAuthority : umi.identity.publicKey,
         sellerFeeBasisPoints : percentAmount(1),
