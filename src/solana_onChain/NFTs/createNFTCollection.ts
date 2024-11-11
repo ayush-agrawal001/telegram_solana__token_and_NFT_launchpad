@@ -30,6 +30,7 @@ export interface NFTInfo {
     description : string,
     imgUrl : any,
     collectibleId? : string
+    traits? : string;
 }
 
 export default async function createNFTCollection(nftInfo : NFTInfo){

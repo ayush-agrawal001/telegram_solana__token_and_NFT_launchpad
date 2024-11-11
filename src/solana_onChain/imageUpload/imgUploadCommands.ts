@@ -4,6 +4,41 @@ import axios from "axios";
 import dbFunction, { getImageUse } from "../../db/dbFunction";
 import { metadataImageUrl } from "./imageUpload";
 import sharp from "sharp";
+// import { Context } from "telegraf";
+
+export async function uploadImagePermUrl(ctx : any) {
+    const files = ctx.update.message.photo[ctx.update.message.photo.length - 1].file_id;
+    const filesInfo = ctx.update.message.photo[ctx.update.message.photo.length - 1];
+
+    console.log(filesInfo);
+
+    if (filesInfo!.file_size! > 5 * (Math.pow(10, 6))) {
+        ctx.reply("Please upload an image smaller than 5 MB.");
+        return;
+    }
+
+    
+    try {
+        const url = await ctx.telegram.getFileLink(files);
+        console.log(url.href);
+    
+        const response = await axios({ url: String(url), responseType: 'arraybuffer' });
+        const imgBuffer = Buffer.from(response.data);
+    
+        const processedImageBuffer = await sharp(imgBuffer)
+            .resize({ width: 1024 }) // size
+            .jpeg({ quality: 80 }) // quality
+            .toBuffer();
+    
+        const result = await metadataImageUrl(processedImageBuffer);
+
+        return result;
+    } catch (error) {
+        console.error("Error processing image:", error);
+        ctx.reply("An error occurred while processing the image. Please try again.");
+    }
+}
+
 
 export default function imageUpload(){
     bot.command("uploadToArweave", async (ctx) => {
@@ -28,46 +63,19 @@ For optimal quality and seamless integration with decentralized platforms, pleas
             
         try {
             bot.on(message("photo"), async (ctx) => {
-                const files = ctx.update.message.photo[ctx.update.message.photo.length - 1].file_id;
-                const filesInfo = ctx.update.message.photo[ctx.update.message.photo.length - 1];
 
-                console.log(filesInfo);
-
-                if (filesInfo!.file_size! > 5 * (Math.pow(10, 6))) {
-                    ctx.reply("Please upload an image smaller than 5 MB.");
-                    return;
-                }
-
-                
-                try {
-                    const url = await ctx.telegram.getFileLink(files);
-                    console.log(url.href);
-                
-                    const response = await axios({ url: String(url), responseType: 'arraybuffer' });
-                    const imgBuffer = Buffer.from(response.data);
-                
-                    const processedImageBuffer = await sharp(imgBuffer)
-                        .resize({ width: 1024 }) // size
-                        .jpeg({ quality: 80 }) // quality
-                        .toBuffer();
-                
-                    const result = await metadataImageUrl(processedImageBuffer);
-                
-                    if (result) {
-                        ctx.reply("Here is your image link");
-                        ctx.reply(`[Click to open in browser](${result.tx.gatewayUrls[0]})`, { parse_mode: 'MarkdownV2' });
-                        ctx.reply(`\`${result.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
-                        console.log(result.tx.gatewayUrls);
-                
-                        // Update database with image status
-                        await dbFunction(String(ctx.from.username), { img: true });
-                    } else {
-                        ctx.reply("Please try again later.");
-                    }
-                
-                } catch (error) {
-                    console.error("Error processing image:", error);
-                    ctx.reply("An error occurred while processing the image. Please try again later.");
+                const result = await uploadImagePermUrl(ctx);
+            
+                if (result) {
+                    ctx.reply("Here is your image link");
+                    ctx.reply(`[Click to open in browser](${result.tx.gatewayUrls[0]})`, { parse_mode: 'MarkdownV2' });
+                    ctx.reply(`\`${result.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
+                    console.log(result.tx.gatewayUrls);
+            
+                    // Update database with image status
+                    await dbFunction(String(ctx.from.username), { img: true });
+                } else {
+                    ctx.reply("Please try again later.");
                 }
             })
             

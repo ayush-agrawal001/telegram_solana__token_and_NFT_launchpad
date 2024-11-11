@@ -23,4 +23,14 @@ Failed to mint ${tokenName}. Please check your inputs and try again.`;
 export const MINTING_PROCESS_ERROR_MSG = "Something went wrong while minting the token. Please try again.";
 
 
+export const WARNING_MESSAGE_IMAGE_UPLOAD = `Note for Image Upload:
+            
+File Size Limit: Maximum 5 MB
+
+👇Important👇:
+
+Uploading larger files may lead to a loss of image resolution and affect your ⛏️ NFT minting ⛏️ or 🪙 token utility 🪙.
+For optimal quality and seamless integration with decentralized platforms, please ensure your images are within the specified size limit.
+
+🙏Thank you🙏!`;
 

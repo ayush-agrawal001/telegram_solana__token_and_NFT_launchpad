@@ -102,6 +102,7 @@ async function tokenCommands() {
             }
         });
     });
+    
 }
 
 export default tokenCommands;

@@ -95,7 +95,10 @@ interface nftOrToken {
     nftRegular? : boolean
 }
 
+let isYes = false;
+
 export async function confirmWalletDeduction({ nftCollectible, nftRegular , token } : nftOrToken ,ctx : Context, tokenMetadata : TokenInfo | NFTInfo) {
+    
     ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
         reply_markup : {
             inline_keyboard : [
@@ -105,6 +108,7 @@ export async function confirmWalletDeduction({ nftCollectible, nftRegular , toke
     })
 
     bot.action("yesCreate", async (ctx) => {
+        isYes = true;
         ctx.reply(`⛓️ Syncing with the blockchain... Web3 runs on trustless networks, so a few extra seconds now means a safer, decentralized future! While we connect, here’s a pro tip: patience is your best crypto!`);
         const user = await getIsWallet(ctx.from.username!);
         if (user?.isWallet === false) {
@@ -153,10 +157,14 @@ export async function confirmWalletDeduction({ nftCollectible, nftRegular , toke
     });
 
     bot.action("exitCommand", (ctx) => {
+        isYes = false;
         ctx.reply("Ok 🥲👍");
         ctx.answerCbQuery("Ok 🥲👍");
     })
+    console.log(isYes);
+    return isYes;
 
+    
 }
 
 export {userKeypair};

@@ -6,6 +6,7 @@ import { getNFTCollectionMetadata } from "./getNFTCollectioinfo";
 import { getNFTMetadata } from "./getNFTinfo";
 
 export default async function createNFTcommands() {
+
     bot.command("createNFT", async ctx => {
         
         const balance = await balanceFromWallet(devUserKeypair.publicKey);
@@ -25,10 +26,13 @@ export default async function createNFTcommands() {
 
         bot.action("startCollectible",async ctx => {
             await getNFTCollectionMetadata(ctx)
+            ctx.answerCbQuery("Connecting with NFT collection creation....")
         })
 
         bot.action("createNFT",async ctx => {
+            ctx.answerCbQuery("Connecting with NFT creation....")
             await getNFTMetadata(ctx);
         })
     })
+    
 }

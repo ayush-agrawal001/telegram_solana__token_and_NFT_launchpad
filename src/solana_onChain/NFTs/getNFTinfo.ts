@@ -3,6 +3,8 @@ import { bot } from "../../botCode";
 import { Context } from "telegraf";
 import { confirmWalletDeduction } from "../wallet";
 import { NFTInfo } from "./createNFTCollection";
+import { uploadImagePermUrl } from "../imageUpload/imgUploadCommands";
+import dbFunction from "../../db/dbFunction";
 
 export let nftInfo: NFTInfo;
 let nftStage = 1;
@@ -44,16 +46,19 @@ export async function getNFTMetadata(ctx: Context) {
         await ctx.answerCbQuery("Let's Go");
 
         bot.on(message("text"), async (ctx) => {
+            console.log(ctx)
             const inputText = ctx.message.text;
 
-            function switchCase(condition: boolean, messageText: string, warningText: string, fieldType: string, goBackStage: number, nextStage: number) {
+            function switchCase(condition: boolean, messageText: string, warningText: string, fieldType: string, goBackStage: number, nextStage: number,isUrlPrompt? : boolean ) {
                 if (condition) {
                     ctx.reply(warningText);
                 } else {
                     setTimeout(async () => await ctx.reply(messageText, {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: "Go Back", callback_data: `goBack${goBackStage}` }]
+                                (isUrlPrompt ? [{text : "🖼️ Image", callback_data : "imgUp"}, {text : "🌐 URL", callback_data : "urlUp"}] : []),
+                                [{ text: "Go Back", callback_data: `goBack${goBackStage}` }],
+                                [{ text: "Cancel", callback_data: `goBack${goBackStage}` }],
                             ]
                         }
                     }), 100);
@@ -63,6 +68,37 @@ export async function getNFTMetadata(ctx: Context) {
                         ctx.reply(`Please re-enter the ${fieldType}.`);
                         ctx.answerCbQuery(`Re-enter ${fieldType}`);
                     });
+                    bot.action("imgUp", ctx => {
+                        ctx.reply("📸 Please send an image that is less than 5 MB.");
+            ctx.reply(`Note for Image Upload:
+                
+    File Size Limit: Maximum 5 MB
+    
+    👇Important👇:
+    
+    Uploading larger files may lead to a loss of image resolution and affect your ⛏️ NFT minting ⛏️ or 🪙 token utility 🪙.
+    For optimal quality and seamless integration with decentralized platforms, please ensure your images are within the specified size limit.
+    
+    🙏Thank you🙏!`);
+                        bot.on(message('photo'), async ctx => {
+                            const result = await uploadImagePermUrl(ctx);
+                            if (result) {
+                                ctx.reply("Here is your image link");
+                                ctx.reply(`[Click to open in browser](${result.tx.gatewayUrls[0]})`, { parse_mode: 'MarkdownV2' });
+                                ctx.reply(`\`${result.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
+                                console.log(result.tx.gatewayUrls);
+                        
+                                // Update database with image status
+                                await dbFunction(String(ctx.from.username), { img: true });
+
+                                ctx.reply("✨ For the best results, please send the image URL provided above! 🌐");
+                            }
+                        })
+                    })
+    
+                    bot.action("urlUp", (ctx => {
+                        ctx.reply("Please send image URL");
+                    }))
                 }
             }
 
@@ -94,11 +130,12 @@ export async function getNFTMetadata(ctx: Context) {
                 case 3: // Step 3: Get description
                     switchCase(
                         (inputText.length > 200),
-                        "Please provide a URL for the NFT image.",
+                        "🔄 What would you like to upload?",
                         "Please enter a description with less than 200 characters.",
                         "description",
                         3,
-                        4
+                        4,
+                        true
                     );
                     nftInfo.description = inputText;
                     break;
@@ -117,6 +154,8 @@ export async function getNFTMetadata(ctx: Context) {
                     nftInfo.collectibleId = inputText;
                     await confirmWalletDeduction({ nftRegular: true }, ctx, nftInfo);
                     nftStage = 6;
+                    process.once('SIGINT', () => bot.stop('SIGINT'))
+                    process.once('SIGTERM', () => bot.stop('SIGTERM'))
                     break;
 
                 case 6:

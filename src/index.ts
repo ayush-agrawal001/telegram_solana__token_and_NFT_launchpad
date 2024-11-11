@@ -3,6 +3,7 @@ import { configDotenv } from "dotenv";
 import botCommands from "./botCode.js";
 import mongoose from "mongoose";
 import { clusterApiUrl, Connection, Keypair } from "@solana/web3.js";
+import botWalletCommands from "./botWalletCommands.js";
 
 const app : Express = e();
 const port = 3000;
@@ -19,6 +20,8 @@ app.get("/", (req : Request, res : Response) => {
 });
 
 botCommands(); 
+
+
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
