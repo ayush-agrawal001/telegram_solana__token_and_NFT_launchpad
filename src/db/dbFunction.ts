@@ -78,5 +78,19 @@ async function getIsWallet(userName : string) {
     }
 }
 
+export async function setWallet(userName : string, walletAddress : string, walletPrivateKey : string){
+    try {
+        const result = await userModel.updateOne({userName : userName}, {$set : {walletAddress : walletAddress, walletPrivateKey : walletPrivateKey}})
+        if (result) {
+            return 1;
+        }else{
+            return 0;
+        }
+    } catch (error) {
+        console.log(error);
+        return 0;
+    }
+}
+
 export {getImageUse, addUser, isWallet, getIsWallet};
 export default dbFunction;

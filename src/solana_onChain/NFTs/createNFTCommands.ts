@@ -1,3 +1,4 @@
+import { Message } from "telegraf/typings/core/types/typegram";
 import { devUserKeypair } from "../..";
 import { bot } from "../../botCode";
 import { INSUFFICIENT_BALANCE_MSG } from "../token/createTokenMessages";
@@ -5,17 +6,26 @@ import { balanceFromWallet, userKeypair } from "../wallet";
 import { getNFTCollectionMetadata } from "./getNFTCollectioinfo";
 import { getNFTMetadata } from "./getNFTinfo";
 
+let optionMessage : Message;
+
 export default async function createNFTcommands() {
 
-    bot.command("createNFT", async ctx => {
+    bot.command("createnft" || "createNFT", async ctx => {
         
-        const balance = await balanceFromWallet(devUserKeypair.publicKey);
-        if (balance === 0) {
-            ctx.reply(INSUFFICIENT_BALANCE_MSG);
+        try{
+            const balance = await balanceFromWallet(devUserKeypair.publicKey);
+            if (balance === 0) {
+                ctx.reply(INSUFFICIENT_BALANCE_MSG);
+                setTimeout(() => ctx.reply(`\`${userKeypair.publicKey}\``, { parse_mode: 'MarkdownV2' }), 1000);
+                return;
+            }
+        }catch(error){
+            ctx.reply(`can't get balance please try again later`);
             setTimeout(() => ctx.reply(`\`${userKeypair.publicKey}\``, { parse_mode: 'MarkdownV2' }), 1000);
+            console.log(error);
             return;
         }
-        ctx.reply("Would you like to make a collectible or a regular NFT ?", {
+        optionMessage = await ctx.reply("Would you like to make a collectible or a regular NFT ?", {
             reply_markup : {
                 inline_keyboard : [
                     [{text : "Create Colllectible", callback_data : "startCollectible"}],
@@ -25,11 +35,13 @@ export default async function createNFTcommands() {
         })
 
         bot.action("startCollectible",async ctx => {
+            ctx.deleteMessage(optionMessage.message_id);
             await getNFTCollectionMetadata(ctx)
             ctx.answerCbQuery("Connecting with NFT collection creation....")
         })
 
         bot.action("createNFT",async ctx => {
+            ctx.deleteMessage(optionMessage.message_id);
             ctx.answerCbQuery("Connecting with NFT creation....")
             await getNFTMetadata(ctx);
         })

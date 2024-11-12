@@ -27,22 +27,9 @@ umi
     .use(mplTokenMetadata())
     .use(irysUploader());
 
-const collectionNftAddress = umiPublicKey("CAbHmRiqhYQEGukx9n4nMFUdteiN74BCMZCSrDsULR7u");
+// const collectionNftAddress = umiPublicKey("CAbHmRiqhYQEGukx9n4nMFUdteiN74BCMZCSrDsULR7u");
 
 export default async function createRegularNFT(nftInfo : NFTInfo){
-    // const nftData = {
-    //     name : nftInfo.tokenName,
-    //     symbol : nftInfo.symbol,
-    //     description : nftInfo.description,
-    //     imageFile : nftInfo.imgUrl
-    // }
-    // const NFTImagePath = path.resolve(__dirname, "nft.png");
- 
-    //   const buffer = await fs.readFile(NFTImagePath);
-
-    //   const imageUri = await metadataImageUrl(buffer);
-
-    //   console.log(imageUri[0]);
 
     const mintLength = getMintLen([ExtensionType.MetadataPointer]);
     const minimumRequired = await conn.getMinimumBalanceForRentExemption(mintLength);
@@ -70,10 +57,10 @@ export default async function createRegularNFT(nftInfo : NFTInfo){
         uri,
         updateAuthority: umi.identity.publicKey,
         sellerFeeBasisPoints: percentAmount(1),
-        collection: {
-        key: collectionNftAddress,
-        verified: false,
-        },
+        // collection: {
+        // key: collectionNftAddress,
+        // verified: false,
+        // },
     }).sendAndConfirm(umi, { send: { commitment: "finalized" } });
     
     let link = getExplorerLink("address", mint.publicKey, "devnet");

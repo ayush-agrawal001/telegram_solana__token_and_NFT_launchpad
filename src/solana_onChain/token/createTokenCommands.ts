@@ -10,14 +10,18 @@ import { ENTER_MINT_AMOUNT_MSG, ENTER_PUBLIC_KEY_MSG, INSUFFICIENT_BALANCE_MSG, 
 import { devUserKeypair } from "../..";
 
 async function tokenCommands() {
-    bot.command("createToken", async (ctx) => {
-        const balance = await balanceFromWallet(devUserKeypair.publicKey);
-        if (balance === 0) {
-            ctx.reply(INSUFFICIENT_BALANCE_MSG);
-            setTimeout(() => ctx.reply(`\`${userKeypair.publicKey}\``, { parse_mode: 'MarkdownV2' }), 1000);
-            return;
+    bot.command("createtoken", async (ctx) => {
+        try {
+            const balance = await balanceFromWallet(devUserKeypair.publicKey);
+            if (balance === 0) {
+                ctx.reply(INSUFFICIENT_BALANCE_MSG);
+                setTimeout(() => ctx.reply(`\`${userKeypair.publicKey}\``, { parse_mode: 'MarkdownV2' }), 1000);
+                return;
+            }
+            await getMetadataFromUser(ctx);
+        } catch (error) {
+            console.error(error);
         }
-        await getMetadataFromUser(ctx);
     });
 
     bot.command("mintToken", (ctx) => {

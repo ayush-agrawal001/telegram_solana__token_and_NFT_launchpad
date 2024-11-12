@@ -31,8 +31,9 @@ export async function uploadImagePermUrl(ctx : any) {
             .toBuffer();
     
         const result = await metadataImageUrl(processedImageBuffer);
-
+        await dbFunction(String(ctx.from.username), { img: true });
         return result;
+        
     } catch (error) {
         console.error("Error processing image:", error);
         ctx.reply("An error occurred while processing the image. Please try again.");

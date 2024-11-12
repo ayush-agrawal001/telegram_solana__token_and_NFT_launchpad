@@ -1,184 +1,264 @@
 import { message } from "telegraf/filters";
 import { bot } from "../../botCode";
-import { Context } from "telegraf";
 import { confirmWalletDeduction } from "../wallet";
-import { NFTInfo } from "./createNFTCollection";
+import { Context } from "telegraf";
 import { uploadImagePermUrl } from "../imageUpload/imgUploadCommands";
-import dbFunction from "../../db/dbFunction";
-
-export let nftInfo: NFTInfo;
-let nftStage = 1;
-
-nftInfo = {
-    tokenName: "",
-    symbol: "",
-    description: "",
-    imgUrl: "",
-    collectibleId: "", // New field for collectible public ID
-};
+import { WARNING_MESSAGE_IMAGE_UPLOAD } from "../token/createTokenMessages";
+import { Message } from "telegraf/typings/core/types/typegram";
 
 const isValidUrl = (urlString: string) => {
-    const urlPattern = new RegExp('^(https?:\\/\\/)?'+
-        '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+
-        '((\\d{1,3}\\.){3}\\d{1,3}))'+
-        '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+
-        '(\\?[;&a-z\\d%_.~+=-]*)?'+
-        '(\\#[-a-z\\d_]*)?$','i');
-    return urlPattern.test(urlString);
+    var urlPattern = new RegExp('^(https?:\\/\\/)?' + 
+    '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + 
+    '((\\d{1,3}\\.){3}\\d{1,3}))' + 
+    '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' + 
+    '(\\?[;&a-z\\d%_.~+=-]*)?' + 
+    '(\\#[-a-z\\d_]*)?$', 'i');
+    return !urlPattern.test(urlString);
 }
 
+export interface NFTInfo {
+    tokenName: string;
+    symbol: string;
+    description: string;
+    imgUrl: string;
+    collectibleId: string;
+}
+
+let stage = 1;
+export let nftInfo: NFTInfo = {
+    tokenName: "",
+    symbol: "",
+    description: "", 
+    imgUrl: "",
+    collectibleId: ""
+};
+
+let isMetadataListening = false;
+let isPhotoListening = false;
+
+// Add message tracking variables
+let message1: Message;
+let message2: Message;
+let message3: Message;
+let message4: Message;
+let message5: Message;
+
+// Add cancel and goBack functions
+async function cancelProcess(ctx: Context) {
+    isMetadataListening = false;
+    isPhotoListening = false;
+    stage = 1;
+    await ctx.reply("❌ Process cancelled. You can start over when you're ready!");
+}
+
+async function goBack(ctx: Context, next: () => void) {
+    stage = Math.max(1, stage - 1);
+    await handleStage(ctx, null, next);
+}
+
+async function handleStage(ctx: Context, inputText: string | null, next: () => void) {
+    switch (stage) {
+        case 1:
+            if (inputText) {
+                if (inputText.length > 32) {
+                    await ctx.reply("🚨 Please enter a NFT name with less than 32 characters.");
+                    return;
+                }
+                nftInfo.tokenName = inputText;
+                stage = 2;
+                await handleStage(ctx, null, next);
+            } else {
+                message1 = await ctx.reply("First, enter a name for your NFT (e.g., 'MyNFT'). 📝 (Max 32 characters)", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "⬅️ Go Back", callback_data: "goBack" }, { text: "❌ Cancel", callback_data: "cancel" }]
+                        ]
+                    }
+                });
+            }
+            break;
+
+        case 2:
+            if (inputText) {
+                if (inputText.length > 10) {
+                    await ctx.reply("🚫 Symbol is too long! Please enter a symbol with less than 10 characters.");
+                    return;
+                }
+                nftInfo.symbol = inputText;
+                stage = 3;
+                await handleStage(ctx, null, next);
+            } else {
+                message2 = await ctx.reply("💬 Enter a short symbol or ticker for your NFT (max 10 characters).", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "⬅️ Go Back", callback_data: "goBack" }, { text: "❌ Cancel", callback_data: "cancel" }]
+                        ]
+                    }
+                });
+            }
+            break;
+
+        case 3:
+            if (inputText) {
+                if (inputText.length > 200) {
+                    await ctx.reply("✍️ Keep it short! Please enter a description with less than 200 characters.");
+                    return;
+                }
+                nftInfo.description = inputText;
+                stage = 4;
+                await handleStage(ctx, null, next);
+            } else {
+                message3 = await ctx.reply("📜 Add a brief description for your NFT. What makes it unique? (Max 200 characters)", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "⬅️ Go Back", callback_data: "goBack" }, { text: "❌ Cancel", callback_data: "cancel" }]
+                        ]
+                    }
+                });
+            }
+            break;
+
+        case 4:
+            if (inputText) {
+                if (inputText.toLowerCase() === "skip") {
+                    nftInfo.collectibleId = "";
+                    stage = 5;
+                } else {
+                    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(inputText)) {
+                        await ctx.reply("❌ Please enter a valid Solana public key or type 'skip' to proceed without one.");
+                        return;
+                    } else {
+                        console.log(inputText);
+                        nftInfo.collectibleId = inputText;
+                        stage = 5;
+                    }
+                }
+                await handleStage(ctx, null, next);
+            } else {
+                message4 = await ctx.reply("🆔 Enter the collectible public ID to associate with this NFT, or type 'skip' to proceed without one.", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "⬅️ Go Back", callback_data: "goBack" }, { text: "❌ Cancel", callback_data: "cancel" }]
+                        ]
+                    }
+                });
+            }
+            break;
+
+        case 5:
+            if (inputText) {
+                if (isValidUrl(inputText)) {
+                    await ctx.reply("🔗 Oops! That doesn't look like a valid URL. Please try again.");
+                    return;
+                }
+                nftInfo.imgUrl = inputText;
+                const isConfirmed = await confirmWalletDeduction({ nftRegular: true }, ctx, nftInfo);
+                if (isConfirmed) {
+                    stage = 1;
+                    await ctx.reply("🎉 Success! We got your NFT metadata! 🚀");
+                    next();
+                } else if (!isConfirmed) {
+                    stage = 1;
+                    next();
+                    isMetadataListening = false;
+                    isPhotoListening = false;
+                }
+            } else {
+                message5 = await ctx.reply("🖼️ What would you like to upload?", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "📸 Image", callback_data: "imgUp" }],
+                            [{ text: "🌐 URL of Image", callback_data: "urlUp" }],
+                            [{ text: "⬅️ Go Back", callback_data: "goBack" }, { text: "❌ Cancel", callback_data: "cancel" }]
+                        ]
+                    }
+                });
+            }
+            break;
+    }
+}
+
+let confirmMessage: Message;
+
 export async function getNFTMetadata(ctx: Context) {
-    await ctx.reply("Ready to add an NFT to your collection?", {
+    confirmMessage = await ctx.reply("Are you ready to create your NFT? 🎉", {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "Yes", callback_data: "YesAddNFT" }, { text: "No", callback_data: "NoAddNFT" }]
+                [{ text: "Yes, let's go! 🚀", callback_data: "YesCreateNFT" }, { text: "No, not now 😅", callback_data: "NoDontCreateNFT" }]
             ]
         }
     });
 
-    bot.action("NoAddNFT", ctx => {
-        ctx.reply("Alright, NFT collection is complete!");
-        ctx.answerCbQuery("NFT collection complete.");
+    bot.action("NoDontCreateNFT", ctx => {
+        ctx.reply("Alright, maybe next time! 🥲👍");
+        ctx.answerCbQuery("ok 🥲👍");
     });
 
-    bot.action("YesAddNFT", async (ctx) => {
-        await ctx.reply("Enter the name of your NFT (under 32 characters).");
-        await ctx.answerCbQuery("Let's Go");
+    bot.action("YesCreateNFT", async (ctx, next) => {
+        ctx.deleteMessage(confirmMessage.message_id);
+        await ctx.reply("⚠️ Important: Please do not use any other commands while creating your NFT. This could disrupt the creation process.");
+        await ctx.answerCbQuery("Let's get started!");
+        isMetadataListening = true;
+        handleStage(ctx, null, next);
+    });
+    
+    bot.action("imgUp", async (ctx) => {
+        ctx.deleteMessage(message5.message_id);
+        await ctx.reply(`${WARNING_MESSAGE_IMAGE_UPLOAD} 😊`);
+        isPhotoListening = true;
+        await ctx.answerCbQuery();
+    });
 
-        bot.on(message("text"), async (ctx) => {
-            console.log(ctx)
-            const inputText = ctx.message.text;
+    bot.action("urlUp", async (ctx) => {
+        ctx.deleteMessage(message5.message_id);
+        await ctx.reply("Please enter the image URL 🌐");
+        isPhotoListening = false;
+        stage = 5;
+        await ctx.answerCbQuery();
+    });
 
-            function switchCase(condition: boolean, messageText: string, warningText: string, fieldType: string, goBackStage: number, nextStage: number,isUrlPrompt? : boolean ) {
-                if (condition) {
-                    ctx.reply(warningText);
-                } else {
-                    setTimeout(async () => await ctx.reply(messageText, {
-                        reply_markup: {
-                            inline_keyboard: [
-                                (isUrlPrompt ? [{text : "🖼️ Image", callback_data : "imgUp"}, {text : "🌐 URL", callback_data : "urlUp"}] : []),
-                                [{ text: "Go Back", callback_data: `goBack${goBackStage}` }],
-                                [{ text: "Cancel", callback_data: `goBack${goBackStage}` }],
-                            ]
-                        }
-                    }), 100);
-                    nftStage = nextStage;
-                    bot.action(`goBack${goBackStage}`, (ctx) => {
-                        nftStage -= 1;
-                        ctx.reply(`Please re-enter the ${fieldType}.`);
-                        ctx.answerCbQuery(`Re-enter ${fieldType}`);
-                    });
-                    bot.action("imgUp", ctx => {
-                        ctx.reply("📸 Please send an image that is less than 5 MB.");
-            ctx.reply(`Note for Image Upload:
-                
-    File Size Limit: Maximum 5 MB
-    
-    👇Important👇:
-    
-    Uploading larger files may lead to a loss of image resolution and affect your ⛏️ NFT minting ⛏️ or 🪙 token utility 🪙.
-    For optimal quality and seamless integration with decentralized platforms, please ensure your images are within the specified size limit.
-    
-    🙏Thank you🙏!`);
-                        bot.on(message('photo'), async ctx => {
-                            const result = await uploadImagePermUrl(ctx);
-                            if (result) {
-                                ctx.reply("Here is your image link");
-                                ctx.reply(`[Click to open in browser](${result.tx.gatewayUrls[0]})`, { parse_mode: 'MarkdownV2' });
-                                ctx.reply(`\`${result.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
-                                console.log(result.tx.gatewayUrls);
-                        
-                                // Update database with image status
-                                await dbFunction(String(ctx.from.username), { img: true });
-
-                                ctx.reply("✨ For the best results, please send the image URL provided above! 🌐");
-                            }
-                        })
-                    })
-    
-                    bot.action("urlUp", (ctx => {
-                        ctx.reply("Please send image URL");
-                    }))
-                }
+    bot.on(message("photo"), async (ctx, next) => {
+        if (!isMetadataListening || !isPhotoListening) {
+            return next();
+        }
+        const imageUrl = await uploadImagePermUrl(ctx);
+        if (imageUrl) {
+            ctx.reply("Here is your image link");
+            ctx.reply(`[Click to open in browser](${imageUrl.tx.gatewayUrls[0]})`, { parse_mode: 'MarkdownV2' });
+            ctx.reply(`\`${imageUrl.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
+            nftInfo.imgUrl = imageUrl.tx.gatewayUrls[0];
+            const isConfirmed = await confirmWalletDeduction({ nftRegular: true }, ctx, nftInfo);
+            if (isConfirmed) {
+                stage = 1;
+                await ctx.reply("🎉 NFT metadata with your uploaded image is all set!");
             }
+            isMetadataListening = false;
+            isPhotoListening = false;
+        }
+    });
+    
+    bot.on(message("text"), async (ctx, next) => {
+        if (!isMetadataListening) {
+            return next();
+        }
 
-            switch (nftStage) {
-                case 1: // Step 1: Get NFT name
-                    switchCase(
-                        (inputText.length > 32),
-                        "Enter a unique symbol for this NFT (under 10 characters).",
-                        "Please enter an NFT name with less than 32 characters.",
-                        "NFT name",
-                        1,
-                        2
-                    );
-                    nftInfo.tokenName = inputText;
-                    break;
+        const inputText = ctx.message.text;
+        await handleStage(ctx, inputText, next);
+    });
 
-                case 2: // Step 2: Get symbol
-                    switchCase(
-                        (inputText.length > 10),
-                        "Describe your NFT in a few words (under 200 characters).",
-                        "Please enter a symbol with less than 10 characters.",
-                        "symbol",
-                        2,
-                        3
-                    );
-                    nftInfo.symbol = inputText;
-                    break;
+    bot.action("cancel", async (ctx) => {
+        await cancelProcess(ctx);
+        await ctx.answerCbQuery("Process cancelled");
+    });
 
-                case 3: // Step 3: Get description
-                    switchCase(
-                        (inputText.length > 200),
-                        "🔄 What would you like to upload?",
-                        "Please enter a description with less than 200 characters.",
-                        "description",
-                        3,
-                        4,
-                        true
-                    );
-                    nftInfo.description = inputText;
-                    break;
-
-                case 4: // Step 4: Get Image URL
-                    if (!isValidUrl(inputText)) {
-                        ctx.reply("Please enter a valid URL for the image.");
-                    } else {
-                        nftInfo.imgUrl = inputText;
-                        nftStage = 5;
-                        await ctx.reply("Enter the collectible public ID.");
-                    }
-                    break;
-
-                case 5: // Step 5: Get Collectible Public ID
-                    nftInfo.collectibleId = inputText;
-                    await confirmWalletDeduction({ nftRegular: true }, ctx, nftInfo);
-                    nftStage = 6;
-                    process.once('SIGINT', () => bot.stop('SIGINT'))
-                    process.once('SIGTERM', () => bot.stop('SIGTERM'))
-                    break;
-
-                case 6:
-                    ctx.reply("Your NFT metadata has been recorded! Would you like to add another NFT?", {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: "Yes", callback_data: "YesAddMoreNFT" }, { text: "No", callback_data: "NoMoreNFT" }]
-                            ]
-                        }
-                    });
-                    nftStage = 1; // Reset stage for next NFT if needed
-                    bot.action("YesAddMoreNFT", async (ctx) => {
-                        ctx.reply("Let's add another NFT! Enter the name of your new NFT.");
-                        nftStage = 1;
-                        nftInfo = { tokenName: "", symbol: "", description: "", imgUrl: "", collectibleId: "" };
-                        await ctx.answerCbQuery("Add more NFT");
-                    });
-                    bot.action("NoMoreNFT", (ctx) => {
-                        ctx.reply("All NFTs have been added. Thank you!");
-                        ctx.answerCbQuery("Collection complete!");
-                    });
-                    break;
+    bot.action("goBack", async (ctx, next) => {
+        const msgToDelete = [message1, message2, message3, message4, message5];
+        for (let i = 0; i < msgToDelete.length; i++) {
+            if (stage === i + 1 && msgToDelete[i]) {
+                ctx.deleteMessage(msgToDelete[i].message_id);
             }
-        });
+        }
+        await goBack(ctx, next);
+        await ctx.answerCbQuery("Going back");
     });
 }

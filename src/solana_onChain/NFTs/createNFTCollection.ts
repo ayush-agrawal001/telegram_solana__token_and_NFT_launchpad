@@ -38,22 +38,6 @@ export default async function createNFTCollection(nftInfo : NFTInfo){
     const mintLength = getMintLen([ExtensionType.MetadataPointer]);
     const minimumRequired = await conn.getMinimumBalanceForRentExemption(mintLength);
 
-    // const buffer = await fs.readFile(collectionImagePath);
-
-    // async function imageUrl() {
-    //     let file = createGenericFile(buffer, collectionImagePath, {
-    //         contentType : "image/png",
-    //     });
-    //     // console.log(file.buffer);
-    //     const result = await metadataImageUrl(file.buffer);
-        
-    //     return await result.tx.gatewayUrls
-    // }
-
-    // const imageUri = await imageUrl();
-
-    // console.log(imageUri[0]);
-
     async function jsonUrl() {
         
         const data : NFTInfo = {
