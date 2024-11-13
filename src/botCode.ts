@@ -3,7 +3,7 @@ import { message } from "telegraf/filters"
 import geminiReply, { helpFromGemini } from "./geminiReply.js";
 import userModel from "./db/dbSchema.js";
 import dbFunction, { addUser, setWallet } from "./db/dbFunction.js";
-import walletCommands from "./solana_onChain/wallet.js";
+import walletCommands, { handleWalletReply, hashPassAndStore } from "./solana_onChain/wallet.js";
 import tokenCommands from "./solana_onChain/token/createTokenCommands.js";
 import imageUpload from "./solana_onChain/imageUpload/imgUploadCommands.js";
 import createNFTcommands from "./solana_onChain/NFTs/createNFTCommands.js";
@@ -25,12 +25,7 @@ Here's a quick guide to get started:
 /store – Securely store images on Arweave for permanent access.
 Ready to dive in? Type a command, and let’s explore the world of decentralized technology together!`
 
-interface walletPassword{
-    userName : string;
-    password : string;
-}
-
-export let walletPassword : walletPassword = {userName : "", password : ""};
+let isBotListening = false;
 
 function botCommands(){
     if (!process.env.BOT_TOKEN) {
@@ -42,13 +37,16 @@ function botCommands(){
         try {
             await addUser(ctx.from.username!);
             bot.telegram.sendMessage(ctx.chat.id,startMessage);
-            ctx.reply("🔒 To secure your wallet, please create a strong password. This will help protect your assets and keep your account safe! 🛡️✨");
+            ctx.reply("🔒 To secure your wallet, please create a strong password. This will help protect your assets and keep your account safe! 🛡️✨", {reply_markup : {force_reply : true}});
+            isBotListening = true;
             bot.on(message("text"), async (ctx, next) => {
-                if (ctx.message.text) {
-                    walletPassword = {userName : ctx.from.username!, password : ctx.message.text};
-                    ctx.reply("Password set successfully! You can now use /wallet to generate your wallet.");
-                    next();
-                }  
+                if (!isBotListening) {
+                    return next();
+                }
+                ctx.reply("Password set successfully!");
+                ctx.reply("Start with /createwallet.");
+                setTimeout(() => hashPassAndStore(ctx, ctx.message.text), 1000);
+                isBotListening = false;
             })
         } catch (error) {
             console.log(error);

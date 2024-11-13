@@ -18,9 +18,8 @@ export const devUserKeypair = Keypair.fromSecretKey(new Uint8Array([105, 136, 10
 app.get("/", (req : Request, res : Response) => {
     res.send("Hello");
 });
-
+    
 botCommands(); 
-
 
 
 app.listen(port, () => {

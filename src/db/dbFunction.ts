@@ -92,5 +92,9 @@ export async function setWallet(userName : string, walletAddress : string, walle
     }
 }
 
+// export async function ge(params:type) {
+    
+// }
+
 export {getImageUse, addUser, isWallet, getIsWallet};
 export default dbFunction;

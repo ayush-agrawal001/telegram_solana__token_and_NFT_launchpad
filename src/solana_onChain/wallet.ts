@@ -1,5 +1,5 @@
 import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
-import { bot, walletPassword } from "../botCode";
+import { bot} from "../botCode";
 import { generateMnemonic, mnemonicToSeedSync } from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import dbFunction, { getIsWallet, isWallet } from "../db/dbFunction";
@@ -12,23 +12,35 @@ import createNFTCollection, { NFTInfo } from "./NFTs/createNFTCollection";
 import createRegularNFT from "./NFTs/createNFT";
 import bcrypt from "bcrypt";
 import userModel from "../db/dbSchema";
+import { message } from "telegraf/filters";
+import { Message } from "telegraf/typings/core/types/typegram";
+import { s } from "@raydium-io/raydium-sdk-v2/lib/api-fd862469";
+import { buffer } from "stream/consumers";
 
-async function walletGenerate(){
-    const mnemonic = generateMnemonic();
-    const masterSeed = mnemonicToSeedSync(mnemonic);
-    const derivedSeed = derivePath("m/44'/501'/0'/0'", masterSeed.toString("hex")).key
-    const userKeypair = Keypair.fromSeed(derivedSeed);
-    const userPubkey = userKeypair.publicKey.toBase58();    
-    
-    if(walletPassword.userName !== ""){
-        const password = walletPassword.password;
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password + userKeypair.secretKey.toString(), salt);
-        await userModel.updateOne({userName : walletPassword.userName}, {$set : {walletPrivateKeyHash : hashedPassword}})
-        await userModel.updateOne({userName : walletPassword.userName}, {$set : {walletAddress : userPubkey}})
+async function walletGenerate(username: string){
+    try {
+        const mnemonic = generateMnemonic();
+        const masterSeed = mnemonicToSeedSync(mnemonic);
+        const derivedSeed = derivePath("m/44'/501'/0'/0'", masterSeed.toString("hex")).key
+        const userKeypair = Keypair.fromSeed(derivedSeed);
+        const userPubkey = userKeypair.publicKey.toBase58(); 
+
+        await userModel.updateOne(
+            {userName: username},
+            {
+                $set: {
+                    walletSecretKey: userKeypair.secretKey,
+                    walletMnemonic: mnemonic,
+                    walletAddress: userPubkey
+                }
+            }
+        );
+
+        return ({mnemonic, userKeypair, userPubkey});
+    } catch (error) {
+        console.error("Error in walletGenerate:", error);
+        throw error;
     }
-
-    return ({mnemonic, userKeypair, userPubkey});
 }
 
 export async function balanceFromWallet(userPubkey : PublicKey) : Promise<number> {    
@@ -36,12 +48,11 @@ export async function balanceFromWallet(userPubkey : PublicKey) : Promise<number
         const balance = await conn.getBalance(userPubkey);
         return balance;
     } catch (error) {
-        console.error(error);
+        console.error("Error getting wallet balance:", error);
         return 0;
     }
 }
 
-let userKeypair : Keypair;
 
 const warningMessage = `
 ⚠️ Warning: Sensitive Information ⚠️
@@ -51,9 +62,9 @@ Proceed only if you are in a secure environment and ready to store your private 
 Stay safe and protect your assets!
 `
 
-export default async function walletCommands(){    
-    bot.command("createWallet",  async (ctx) : Promise<void> => {
-        try{
+    let botOn = false;
+    export async function handleWalletReply(ctx: any) {
+        try {
             await ctx.reply(warningMessage, {
                 reply_markup : {
                     inline_keyboard : [
@@ -61,45 +72,136 @@ export default async function walletCommands(){
                         [{text : "Show only Public key", callback_data : 'ShowPubKeyOnly'}]
                     ]
                 }
-            })}
-        catch(error){
-            console.log(error);
+            })
+            botOn = false;
+        } catch(error) {
+            console.error("Error in handleWalletReply:", error);
+            await ctx.reply("Something went wrong please try again later");
+            botOn = false;  
         }
-    })
+}
 
-    const walletInfo = await walletGenerate();
-    userKeypair = walletInfo.userKeypair;
+export default async function walletCommands() {
+    try {
+        bot.command("createwallet", async (ctx) => {
+            try {
+                const user = await userModel.findOne({userName : ctx.from?.username});
+                
+                if (user?.walletSecretKey) {
+                    ctx.reply("You already have a wallet!");
+                    setTimeout(() => ctx.reply(`Here is your wallet address :- ${user.walletAddress}`), 1000);
+                    return;
+                }
 
-    bot.action("ShowPvtKey", async (ctx) => {
-        ctx.editMessageText(`
-            Private Key :-
+                await ctx.reply("Please enter the password")
+                botOn = true;
+                
+                bot.on(message("text"), async (ctx, next) => {
+                    try {
+                        if (!botOn) {
+                            return next();
+                        }
+                        
+                        let walletInfo;
+                        try {
+                            walletInfo = await walletGenerate(ctx.from.username!);
+                        } catch(error) {
+                            console.error("Error generating wallet:", error);
+                            ctx.reply("Something went wrong please try again later");
+                            botOn = false;
+                            return;
+                        }
 
-${walletInfo.mnemonic}`, {
-            reply_markup : {
-                inline_keyboard : [
-                    [{text : "Delete Private Key Seed phrase Chat ", callback_data : 'deletePrivateKeyChat'}],
-                ]
+                        try {
+                            const salt = await bcrypt.genSalt(10);
+                            const hashedPassword = await bcrypt.hash(ctx.message.text, salt);
+                            await userModel.updateOne(
+                                {userName: ctx.from?.username},
+                                {$set: {walletPrivateKeyHash: hashedPassword}}
+                            );
+                        } catch(error) {
+                            console.error("Error storing password:", error);
+                            ctx.reply("Error storing password. Please try again.");
+                            botOn = false;
+                            return;
+                        }
+
+                        await handleWalletReply(ctx);
+                    } catch(error) {
+                        console.error("Error in message handler:", error);
+                        ctx.reply("An unexpected error occurred");
+                        botOn = false;
+                    }
+                })
+                
+                bot.action("ShowPvtKey", async (ctx) => {
+                    try {
+                        const user = await userModel.findOne({userName : ctx.from?.username});
+                        if (!user) {
+                            ctx.reply("No wallet found. Please create one first with /createwallet");
+                            return;
+                        }
+
+                        const mnemonic = user?.walletMnemonic;
+                        const masterSeed = mnemonicToSeedSync(mnemonic!);
+                        const derivedSeed = derivePath("m/44'/501'/0'/0'", masterSeed.toString("hex")).key
+                        const walletKeypair = Keypair.fromSeed(derivedSeed);
+                        const userPubkey = walletKeypair.publicKey.toBase58(); 
+
+                        await ctx.editMessageText(`Private Key seed phrase :-${mnemonic}`, {
+                            reply_markup : {
+                                inline_keyboard : [
+                                    [{text : "Delete Private Key Seed phrase Chat ", callback_data : 'deletePrivateKeyChat'}],
+                                ]
+                            }
+                        });
+                        
+                        bot.action("deletePrivateKeyChat", (ctx) => {
+                            try {
+                                ctx.editMessageText('Deleted Private key chat.')
+                            } catch(error) {
+                                console.error("Error deleting private key chat:", error);
+                            }
+                        })
+                        
+                        await ctx.telegram.sendMessage(`${ctx.chat?.id}`, "Public id :-");
+                        
+                        setTimeout(() => ctx.reply(`\`${walletKeypair.publicKey.toBase58()}\` tap to copy`, {parse_mode : "MarkdownV2"}), 1000)
+                        setTimeout(() => ctx.reply(`🎉 Your wallet has been created successfully! Start by depositing 1 SOL and use the /createToken command to create your token. 🚀`), 2000)
+                        await isWallet(ctx.from.username!);
+                    } catch(error) {
+                        console.error("Error in ShowPvtKey handler:", error);
+                        ctx.reply("An error occurred while showing private key");
+                    }
+                })
+                
+                bot.action("ShowPubKeyOnly", async (ctx) => {
+                    try {
+                        const user = await userModel.findOne({userName : ctx.from?.username});
+                        const walletInfo = JSON.parse(Buffer.from(user?.walletSecretKey!, 'base64').toString());
+                        const walletKeypair = Keypair.fromSecretKey(walletInfo.secretKey);
+                        if (!walletInfo) {
+                            ctx.reply("No wallet found. Please create one first with /createwallet");
+                            return;
+                        }
+                        await ctx.editMessageText("Public id :-");
+                        setTimeout(() => ctx.reply(`\`${walletKeypair.publicKey.toBase58()}\` tap to copy`, {parse_mode : "MarkdownV2"}), 1000)
+                        setTimeout(() => ctx.reply(`🎉 Your wallet has been created successfully! Start by depositing 1 SOL and use the /createToken command to create your token. 🚀`), 2000)
+                        await isWallet(ctx.from.username!);
+                    } catch(error) {
+                        console.error("Error in ShowPubKeyOnly handler:", error);
+                        ctx.reply("An error occurred while showing public key");
+                    }
+                })
+
+            } catch(error) {
+                console.error("Error in createwallet command:", error);
+                ctx.reply("An unexpected error occurred");
             }
-        });
-        
-        bot.action("deletePrivateKeyChat", (ctx) => {
-            ctx.editMessageText('Deleted Private key chat.')
         })
-        
-        ctx.telegram.sendMessage(`${ctx.chat?.id}`, "Public id :-");
-        
-        setTimeout(() => ctx.reply(`\`${walletInfo.userPubkey}\` tap to copy`, {parse_mode : "MarkdownV2"}), 1000)
-        setTimeout(() => ctx.reply(`🎉 Your wallet has been created successfully! Start by depositing 1 SOL and use the /createToken command to create your token. 🚀`), 2000)
-        isWallet(ctx.from.username!);
-    })
-
-    bot.action("ShowPubKeyOnly", (ctx) => {
-        ctx.editMessageText("Public id :-");
-        setTimeout(() => ctx.reply(`\`${walletInfo.userPubkey}\` tap to copy`, {parse_mode : "MarkdownV2"}), 1000)
-        setTimeout(() => ctx.reply(`🎉 Your wallet has been created successfully! Start by depositing 1 SOL and use the /createToken command to create your token. 🚀`), 2000)
-        isWallet(ctx.from.username!);
-    })
-
+    } catch(error) {
+        console.error("Error in walletCommands:", error);
+    }
 }
 
 interface nftOrToken {
@@ -109,87 +211,165 @@ interface nftOrToken {
 }
 
 let isYes = false;
+let confirmMessage : Message;
+let isListening = false;
 
 export async function confirmWalletDeduction({ nftCollectible, nftRegular , token } : nftOrToken ,ctx : Context, tokenMetadata : TokenInfo | NFTInfo) {
-    
-    const confirmMessage = await ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
-        reply_markup : {
-            inline_keyboard : [
-                [{text : "Yes", callback_data : "yesCreate"}, {text : "No", callback_data : "exitCommand"}],
-            ]
+    try {
+        await ctx.reply("🔑 Please enter your password to continue.")
+        const user = await userModel.findOne({userName : ctx.from?.username});
+        if (!user) {
+            return ctx.reply("No wallet found. Please create one first with /createwallet");
         }
-    })
 
-    bot.action("yesCreate", async (ctx) => {
-        ctx.deleteMessage(confirmMessage.message_id);
-        isYes = true;
-        const { message_id } = await ctx.reply(`⛓️ Syncing with the blockchain... Web3 runs on trustless networks, so a few extra seconds now means a safer, decentralized future! While we connect, here’s a pro tip: patience is your best crypto!`);
-        const user = await getIsWallet(ctx.from.username!);
-        if (user?.isWallet === false) {
-            await ctx.reply("No wallet account exist", {
-                reply_markup : {
-                    inline_keyboard : [
-                        [{text : "Generate Wallet", callback_data : "generate"}]
-                    ]
-                }
-            })
-            bot.action("generate", () => walletCommands());
-        }else{
-            console.log("break");
-        }
-        if (token) {
-            try {
-                const result = await pTimeout(creatingTokenMint(tokenMetadata as TokenInfo), {milliseconds : 90000});
-                if (result) {
-                    await ctx.deleteMessage(message_id);
-                    await dbFunction(String(ctx.from.username), { token: true });
-                }
-                ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
-                ctx.reply(result.link)
-                ctx.reply("Operation completed successfully.");
-            } catch (error) {
-                console.error("Error during operation:", error);
-                ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
-            }
-        }else if(nftCollectible){
-            try {
-                const result = await pTimeout(createNFTCollection(tokenMetadata), {milliseconds : 90000});
-                if (result) {
-                    await ctx.deleteMessage(message_id);
-                    await dbFunction(String(ctx.from.username), { nft: true });
-                }
-                ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
-                ctx.reply(result.link)
-                ctx.reply("Operation completed successfully.");
-            } catch (error) {
-                console.error("Error during operation:", error);
-                ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
-            }
-        }else if (nftRegular) {
-            try {
-                const result = await pTimeout(createRegularNFT(tokenMetadata), {milliseconds : 90000});
-                if (result) {
-                    await ctx.deleteMessage(message_id);
-                    await dbFunction(String(ctx.from.username), { nft: true });
-                }
-                ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
-                ctx.reply(result.link)
-                ctx.reply("Operation completed successfully.");
-            } catch (error) {
-                console.error("Error during operation:", error);
-                ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
-            }
-        }
-    });
+        const secretKeyBuffer = Buffer.from(user.walletSecretKey!, 'base64');
 
-    bot.action("exitCommand", (ctx) => {
-        ctx.deleteMessage(confirmMessage.message_id);
-        isYes = false;
-        ctx.reply("Ok 🥲👍");
-        ctx.answerCbQuery("Ok 🥲👍");
-    })
-    console.log(isYes);
-    return isYes;    
+        isListening = true;
+        bot.on(message("text"), (ctx, next) => {
+            try {
+                if (!isListening) {
+                    return next();
+                }
+                bcrypt.compare(ctx.message.text, "userWalletHash!", async (err, result) => {
+                    try {
+                        if(result){
+                            confirmMessage = await ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
+                                reply_markup : {
+                                    inline_keyboard : [
+                                        [{text : "Yes", callback_data : "yesCreate"}, {text : "No", callback_data : "exitCommand"}],
+                                    ]
+                                }
+                            })
+                            isListening = false;
+                        } else {
+                            await ctx.reply("Wrong password")
+                            await ctx.reply("Please try again", {reply_markup : {
+                                force_reply : true,
+                                inline_keyboard : [
+                                    [{text : "Cancel ❌", callback_data : "cancel"}]
+                                ]
+                            }})
+                            console.error(err);
+                            isListening = false;
+                        }
+                    } catch(error) {
+                        console.error("Error in password comparison callback:", error);
+                        ctx.reply("An error occurred while processing password");
+                    }
+                })
+            } catch(error) {
+                console.error("Error in message handler:", error);
+                ctx.reply("An error occurred while processing message");
+            }
+        })
+
+        bot.action("cancel", (ctx) => {
+            try {
+                ctx.reply("Ok 🤨");
+                isYes = false;
+                isListening = false;
+            } catch(error) {
+                console.error("Error in cancel action:", error);
+            }
+        })
+
+        bot.action("yesCreate", async (ctx) => {
+            try {
+                await ctx.deleteMessage(confirmMessage.message_id);
+                isYes = true;
+                const { message_id } = await ctx.reply(`⛓️ Syncing with the blockchain... Web3 runs on trustless networks, so a few extra seconds now means a safer, decentralized future! While we connect, here's a pro tip: patience is your best crypto!`);
+                const user = await getIsWallet(ctx.from.username!);
+                if (user?.isWallet === false) {
+                    await ctx.reply("No wallet account exist", {
+                        reply_markup : {
+                            inline_keyboard : [
+                                [{text : "Generate Wallet", callback_data : "generate"}]
+                            ]
+                        }
+                    })
+                    bot.action("generate", () => walletCommands());
+                    isListening = false;
+                    return;
+                }
+
+                if (token) {
+                    try {
+                        const result = await pTimeout(creatingTokenMint(tokenMetadata as TokenInfo), {milliseconds : 90000});
+                        if (result) {
+                            await ctx.deleteMessage(message_id);
+                            await dbFunction(String(ctx.from.username), { token: true });
+                            await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                            await ctx.reply(result.link);
+                            await ctx.reply("Operation completed successfully.");
+                        }
+                    } catch (error) {
+                        console.error("Error during token creation:", error);
+                        ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+                    }
+                } else if(nftCollectible) {
+                    try {
+                        const result = await pTimeout(createNFTCollection(tokenMetadata), {milliseconds : 90000});
+                        if (result) {
+                            await ctx.deleteMessage(message_id);
+                            await dbFunction(String(ctx.from.username), { nft: true });
+                            await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                            await ctx.reply(result.link);
+                            await ctx.reply("Operation completed successfully.");
+                        }
+                    } catch (error) {
+                        console.error("Error during NFT collection creation:", error);
+                        ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+                    }
+                } else if (nftRegular) {
+                    try {
+                        const result = await pTimeout(createRegularNFT(tokenMetadata), {milliseconds : 90000});
+                        if (result) {
+                            await ctx.deleteMessage(message_id);
+                            await dbFunction(String(ctx.from.username), { nft: true });
+                            await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                            await ctx.reply(result.link);
+                            await ctx.reply("Operation completed successfully.");
+                        }
+                    } catch (error) {
+                        console.error("Error during regular NFT creation:", error);
+                        ctx.reply("Sorry, the operation took too long and timed out. Please try again later.");
+                    }
+                }
+            } catch(error) {
+                console.error("Error in yesCreate action:", error);
+                ctx.reply("An unexpected error occurred");
+            }
+        });
+
+        bot.action("exitCommand", (ctx) => {
+            try {
+                ctx.deleteMessage(confirmMessage.message_id);
+                isYes = false;
+                ctx.reply("Ok 🥲👍");
+                ctx.answerCbQuery("Ok 🥲👍");
+            } catch(error) {
+                console.error("Error in exitCommand action:", error);
+            }
+        })
+
+        return isYes;    
+    } catch(error) {
+        console.error("Error in confirmWalletDeduction:", error);
+        ctx.reply("An unexpected error occurred");
+        return false;
+    }
 }
 
-export {userKeypair};
+export async function hashPassAndStore(ctx : Context, password : string){
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+        await userModel.updateOne(
+            {userName: ctx.from?.username},
+            {$set: {walletPrivateKeyHash: hashedPassword}}
+        );
+    } catch(error) {
+        console.error("Error in hashPassAndStore:", error);
+        throw error;
+    }
+}

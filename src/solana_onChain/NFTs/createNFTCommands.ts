@@ -2,15 +2,22 @@ import { Message } from "telegraf/typings/core/types/typegram";
 import { devUserKeypair } from "../..";
 import { bot } from "../../botCode";
 import { INSUFFICIENT_BALANCE_MSG } from "../token/createTokenMessages";
-import { balanceFromWallet, userKeypair } from "../wallet";
+import { balanceFromWallet } from "../wallet";
 import { getNFTCollectionMetadata } from "./getNFTCollectioinfo";
 import { getNFTMetadata } from "./getNFTinfo";
+import userModel from "../../db/dbSchema";
+import { Keypair } from "@solana/web3.js";
 
 let optionMessage : Message;
 
 export default async function createNFTcommands() {
 
+    
     bot.command("createnft" || "createNFT", async ctx => {
+        
+        const user = await userModel.findOne({userName : ctx.from.username});
+        const secretKey = Buffer.from(user?.walletSecretKey!, "base64");
+        const userKeypair = Keypair.fromSecretKey(secretKey);
         
         try{
             const balance = await balanceFromWallet(devUserKeypair.publicKey);

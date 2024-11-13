@@ -1,5 +1,5 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
-import walletCommands, { balanceFromWallet, confirmWalletDeduction, userKeypair } from "../wallet";
+import walletCommands, { balanceFromWallet, confirmWalletDeduction } from "../wallet";
 import { bot } from "../../botCode";
 import { getIsWallet } from "../../db/dbFunction";
 import { message } from "telegraf/filters";
@@ -8,9 +8,15 @@ import { config } from "dotenv";
 import { getMetadataFromUser, tokenInfo, TokenInfo } from "./getMetadataFromUser";
 import { ENTER_MINT_AMOUNT_MSG, ENTER_PUBLIC_KEY_MSG, INSUFFICIENT_BALANCE_MSG, INVALID_AMOUNT_MSG, INVALID_PUBLIC_KEY_MSG, MINT_ERROR_MSG, MINT_SUCCESS_MSG, MINT_TOKEN_DESTINATION_MSG, MINTING_PROCESS_ERROR_MSG } from "./createTokenMessages";
 import { devUserKeypair } from "../..";
+import userModel from "../../db/dbSchema";
 
 async function tokenCommands() {
+
     bot.command("createtoken", async (ctx) => {
+        
+        const user = await userModel.findOne({userName : ctx.from.username});
+        const secretKey = Buffer.from(user?.walletSecretKey!, "base64");
+        const userKeypair = Keypair.fromSecretKey(secretKey);
         try {
             const balance = await balanceFromWallet(devUserKeypair.publicKey);
             if (balance === 0) {

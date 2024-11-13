@@ -7,7 +7,9 @@ const userSchema = new Schema({
     NFTMinted : {type : Number, default : 0},
     isWallet : {type : Boolean, default : false},
     walletAddress : {type : String, default : ""},
-    walletPrivateKeyHash : {type : String, default : ""},
+    walletSecretKey : {type : String, default : ""},
+    passwordHash : {type : String, default : ""},
+    walletMnemonic : {type : String, default : ""}
 })
 
 const userModel = mongoose.model("user", userSchema);
