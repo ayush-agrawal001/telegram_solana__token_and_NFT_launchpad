@@ -10,20 +10,11 @@ import createNFTcommands from "./solana_onChain/NFTs/createNFTCommands.js";
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
-
 let isPromptListening = false;
 
 const startMessage = `Welcome to ChainGenie! 🌐
 
-I’m here to make your Web3 journey simple and seamless. From generating wallets and creating tokens to minting NFTs and storing images permanently on Arweave, ChainGenie has got you covered! 🪄✨
-
-Here's a quick guide to get started:
-
-/wallet – Generate a new wallet with ease.
-/token – Create and mint tokens in seconds.
-/nft – Craft unique NFTs with custom metadata.
-/store – Securely store images on Arweave for permanent access.
-Ready to dive in? Type a command, and let’s explore the world of decentralized technology together!`
+I'm here to make your Web3 journey simple and seamless. From generating wallets and creating tokens to minting NFTs and storing images permanently on Arweave, ChainGenie has got you covered! 🪄✨`
 
 let isBotListening = false;
 
@@ -33,53 +24,118 @@ function botCommands(){
     }
     
     bot.command("start", async (ctx) => {
-        // console.log(ctx);
         try {
-            await addUser(ctx.from.username!);
+            if (!ctx.from?.username) {
+                ctx.reply("No username found. Please register your username in Telegram first before using this bot.");
+                return;
+            }
+            await addUser(ctx.from.username);
             bot.telegram.sendMessage(ctx.chat.id,startMessage);
             ctx.reply("🔒 To secure your wallet, please create a strong password. This will help protect your assets and keep your account safe! 🛡️✨", {reply_markup : {force_reply : true}});
             isBotListening = true;
             bot.on(message("text"), async (ctx, next) => {
-                if (!isBotListening) {
-                    return next();
+                try {
+                    if (!isBotListening) {
+                        return next();
+                    }
+                    ctx.reply("Password set successfully!");
+                    ctx.reply("Start with /createwallet.");
+                    // console.log(ctx.message.text);
+                    setTimeout(() => hashPassAndStore(ctx, ctx.message.text), 1000);
+                    isBotListening = false;
+                } catch (error) {
+                    console.error("Error in text message handler:", error);
+                    ctx.reply("An error occurred while setting password");
                 }
-                ctx.reply("Password set successfully!");
-                ctx.reply("Start with /createwallet.");
-                setTimeout(() => hashPassAndStore(ctx, ctx.message.text), 1000);
-                isBotListening = false;
             })
         } catch (error) {
-            console.log(error);
+            console.error("Error in start command:", error);
+            ctx.reply("Something went wrong. Please try again later.");
         }
     })
 
-
     bot.on(message('sticker') , async (ctx) => {
-        console.log(ctx.message.sticker.emoji)
-        console.log(ctx.from.username)
-        const replyMessage = await geminiReply(ctx.message.sticker.emoji!, ctx.from.first_name);
-        ctx.reply(replyMessage, {parse_mode : "Markdown"});
+        try {
+            if (!ctx.from?.username) {
+                ctx.reply("No username found");
+                return;
+            }
+            const user = await userModel.findOne({userName: ctx.from.username});
+            if (!user) {
+                ctx.reply("No user found. Please use /start first to register.");
+                return;
+            }
+            // console.log(ctx.message.sticker.emoji)
+            // console.log(ctx.from.username)
+            const replyMessage = await geminiReply(ctx.message.sticker.emoji!, ctx.from.first_name);
+            ctx.reply(replyMessage, {parse_mode : "Markdown"});
+        } catch (error) {
+            console.error("Error in sticker handler:", error);
+            ctx.reply("Something went wrong. Please try again later.");
+        }
     });
     
     bot.command("askgenie", async (ctx) => {
-        await ctx.reply("Hey there! 👋 I'm ChainGenie, your AI-powered Telegram bot 🤖. Feel free to ask me anything – I'm here to help with token creation 💰, NFT minting 🎨, wallet management 🔐, and so much more! Just drop your question, and I'll be ready for the next chat! 💬");
-        await ctx.reply("To exit the chat, use /exit command");
-        isPromptListening = true;
+        try {
+            if (!ctx.from?.username) {
+                ctx.reply("No username found");
+                return;
+            }
+            const user = await userModel.findOne({userName: ctx.from.username});
+            if (!user) {
+                ctx.reply("No user found. Please use /start first to register.");
+                return;
+            }
+            await ctx.reply("Hey there! 👋 I'm ChainGenie, your AI-powered Telegram bot 🤖. Feel free to ask me anything – I'm here to help with token creation 💰, NFT minting 🎨, wallet management 🔐, and so much more! Just drop your question, and I'll be ready for the next chat! 💬");
+            await ctx.reply("To exit the chat, use /exit command");
+            isPromptListening = true;
+        } catch (error) {
+            console.error("Error in askgenie command:", error);
+            ctx.reply("Something went wrong. Please try again later.");
+        }
     });
 
-    bot.command("exit", (ctx) => {
-        if (isPromptListening) {
-            isPromptListening = false;
-            ctx.reply("Chat ended! Use /askgenie to start a new chat.");
+    bot.command("exit", async (ctx) => {
+        try {
+            if (!ctx.from?.username) {
+                ctx.reply("No username found");
+                return;
+            }
+            const user = await userModel.findOne({userName: ctx.from.username});
+            if (!user) {
+                ctx.reply("No user found. Please use /start first to register.");
+                return;
+            }
+            if (isPromptListening) {
+                isPromptListening = false;
+                ctx.reply("Chat ended! Use /askgenie to start a new chat.");
+            }
+        } catch (error) {
+            console.error("Error in exit command:", error);
+            ctx.reply("Something went wrong. Please try again later.");
         }
     });
 
     bot.on(message("text"), async (ctx, next) => {
-        if (!isPromptListening || ctx.message.text.startsWith('/')) {
-            return next();
+        try {
+            if (!isPromptListening || ctx.message.text.startsWith('/')) {
+                return next();
+            }
+            if (!ctx.from?.username) {
+                ctx.reply("No username found");
+                return;
+            }
+            const user = await userModel.findOne({userName: ctx.from.username});
+            if (!user) {
+                ctx.reply("No user found. Please use /start first to register.");
+                return;
+            }
+            const replyMessage = await helpFromGemini(ctx.message.text, ctx.from.first_name);
+            await ctx.reply(replyMessage);
+        } catch (error) {
+            console.error("Error in text message handler:", error);
+            ctx.reply("Something went wrong. Please try again later.");
         }
-        const replyMessage = await helpFromGemini(ctx.message.text, ctx.from.first_name);
-        await ctx.reply(replyMessage);
     });
 
     tokenCommands();

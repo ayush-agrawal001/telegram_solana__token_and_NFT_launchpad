@@ -222,7 +222,6 @@ export async function getMetadataFromUser(ctx: Context) {
             ctx.reply(`\`${imageUrl.tx.gatewayUrls[0]}\``, { parse_mode: 'MarkdownV2' });
             tokenInfo.imgUrl = imageUrl.tx.gatewayUrls[0];
             const isConfirmed = await confirmWalletDeduction({ token: true }, ctx, tokenInfo);
-            console.log(isConfirmed);
             if (isConfirmed) {
                 stage = 1;
                 await ctx.reply("🎉 Metadata with your uploaded image is all set!");

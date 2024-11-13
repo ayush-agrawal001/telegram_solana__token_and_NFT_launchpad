@@ -15,7 +15,7 @@ export const INVALID_PUBLIC_KEY_MSG = "❌ Invalid public key format. Please ent
 export const INVALID_AMOUNT_MSG = "Please enter a valid number greater than zero.";
 
 export const MINT_SUCCESS_MSG = (tokenName : string , pubKey : string) => `🎉 Congratulations!
-You’ve successfully minted ${tokenName} tokens to ${pubKey}! 🎊`;
+You’ve successfully minted token to ${pubKey}! 🎊`;
 
 export const MINT_ERROR_MSG = (tokenName : string) => `⚠️ Minting Error
 Failed to mint ${tokenName}. Please check your inputs and try again.`;

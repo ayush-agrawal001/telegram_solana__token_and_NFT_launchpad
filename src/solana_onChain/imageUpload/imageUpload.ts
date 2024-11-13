@@ -10,6 +10,6 @@ export async function metadataImageUrl(buffer : any) {
             'Content-Type': "image/png"
     }})
     
-    console.log(await uploadResponse.data.tx.gatewayUrls); // image url;
+    // console.log(await uploadResponse.data.tx.gatewayUrls); // image url;
     return await uploadResponse.data
 }

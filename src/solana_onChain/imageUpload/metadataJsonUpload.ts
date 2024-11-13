@@ -20,6 +20,6 @@ export default async function metaDataJsonUrl(tokenMetadata : TokenInfo | NFTInf
     }})
 
     const result = await response.data
-    console.log(await result)
+    // console.log(await result)
     return await result
 }

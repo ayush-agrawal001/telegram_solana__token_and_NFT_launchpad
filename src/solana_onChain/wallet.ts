@@ -14,29 +14,35 @@ import bcrypt from "bcrypt";
 import userModel from "../db/dbSchema";
 import { message } from "telegraf/filters";
 import { Message } from "telegraf/typings/core/types/typegram";
-import { s } from "@raydium-io/raydium-sdk-v2/lib/api-fd862469";
-import { buffer } from "stream/consumers";
 
-async function walletGenerate(username: string){
+export async function convertToKeypair(mnemonic : string) {
     try {
-        const mnemonic = generateMnemonic();
         const masterSeed = mnemonicToSeedSync(mnemonic);
         const derivedSeed = derivePath("m/44'/501'/0'/0'", masterSeed.toString("hex")).key
         const userKeypair = Keypair.fromSeed(derivedSeed);
-        const userPubkey = userKeypair.publicKey.toBase58(); 
+        const userPubkey = userKeypair.publicKey.toBase58();
+        return ({mnemonic, userKeypair, userPubkey});
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function walletGenerate(username: string){
+    try {
+        const mnemonic = generateMnemonic(); 
+        const wallet = await convertToKeypair(mnemonic);
 
         await userModel.updateOne(
             {userName: username},
             {
                 $set: {
-                    walletSecretKey: userKeypair.secretKey,
+                    walletSecretKey: wallet.userKeypair.secretKey,
                     walletMnemonic: mnemonic,
-                    walletAddress: userPubkey
+                    walletAddress: wallet.userPubkey
                 }
             }
         );
 
-        return ({mnemonic, userKeypair, userPubkey});
     } catch (error) {
         console.error("Error in walletGenerate:", error);
         throw error;
@@ -89,7 +95,7 @@ export default async function walletCommands() {
                 
                 if (user?.walletSecretKey) {
                     ctx.reply("You already have a wallet!");
-                    setTimeout(() => ctx.reply(`Here is your wallet address :- ${user.walletAddress}`), 1000);
+                    setTimeout(() => ctx.reply(`Here is your wallet address \` ${user.walletAddress}\` `, {parse_mode : "MarkdownV2"}), 1000);
                     return;
                 }
 
@@ -216,47 +222,48 @@ let isListening = false;
 
 export async function confirmWalletDeduction({ nftCollectible, nftRegular , token } : nftOrToken ,ctx : Context, tokenMetadata : TokenInfo | NFTInfo) {
     try {
-        await ctx.reply("🔑 Please enter your password to continue.")
+        setTimeout(() => ctx.reply("🔑 Please enter your password to continue.", {reply_markup : {force_reply : true}}), 1500)
         const user = await userModel.findOne({userName : ctx.from?.username});
         if (!user) {
-            return ctx.reply("No wallet found. Please create one first with /createwallet");
+            ctx.reply("No wallet found. Please create one first with /createwallet");
+            return;
         }
 
         const secretKeyBuffer = Buffer.from(user.walletSecretKey!, 'base64');
-
+        
         isListening = true;
-        bot.on(message("text"), (ctx, next) => {
+        bot.on(message("text"), async (ctx, next) => {
             try {
                 if (!isListening) {
                     return next();
                 }
-                bcrypt.compare(ctx.message.text, "userWalletHash!", async (err, result) => {
-                    try {
-                        if(result){
-                            confirmMessage = await ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
-                                reply_markup : {
-                                    inline_keyboard : [
-                                        [{text : "Yes", callback_data : "yesCreate"}, {text : "No", callback_data : "exitCommand"}],
-                                    ]
-                                }
-                            })
-                            isListening = false;
-                        } else {
-                            await ctx.reply("Wrong password")
-                            await ctx.reply("Please try again", {reply_markup : {
-                                force_reply : true,
+                try {
+                    const  result = await bcrypt.compare(ctx.message.text, user.passwordHash)
+                    // console.log(ctx.message.text);
+                    // console.log(result);
+                    if(result){
+                        confirmMessage = await ctx.reply("This action will deduct some Solana from your account. Are you sure you want to proceed?", {
+                            reply_markup : {
                                 inline_keyboard : [
-                                    [{text : "Cancel ❌", callback_data : "cancel"}]
+                                    [{text : "Yes", callback_data : "yesCreate"}, {text : "No", callback_data : "exitCommand"}],
                                 ]
-                            }})
-                            console.error(err);
-                            isListening = false;
-                        }
-                    } catch(error) {
-                        console.error("Error in password comparison callback:", error);
-                        ctx.reply("An error occurred while processing password");
+                            }
+                        })
+                        isListening = false;
+                    } else {
+                        await ctx.reply("Wrong password")
+                        await ctx.reply("Please try again", {reply_markup : {
+                            force_reply : true,
+                            inline_keyboard : [
+                                [{text : "Cancel ❌", callback_data : "cancel"}]
+                            ]
+                        }})
+                        isListening = false;
                     }
-                })
+                } catch(error) {
+                    console.error("Error in password comparison callback:", error);
+                    ctx.reply("An error occurred while processing password");
+                }
             } catch(error) {
                 console.error("Error in message handler:", error);
                 ctx.reply("An error occurred while processing message");
@@ -294,13 +301,14 @@ export async function confirmWalletDeduction({ nftCollectible, nftRegular , toke
 
                 if (token) {
                     try {
-                        const result = await pTimeout(creatingTokenMint(tokenMetadata as TokenInfo), {milliseconds : 90000});
+                        const result = await pTimeout(creatingTokenMint(tokenMetadata as TokenInfo, ctx.from.username!), {milliseconds : 90000});
                         if (result) {
                             await ctx.deleteMessage(message_id);
                             await dbFunction(String(ctx.from.username), { token: true });
-                            await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                            // await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
                             await ctx.reply(result.link);
                             await ctx.reply("Operation completed successfully.");
+                            await ctx.reply("Note : Token havent been minted yet. Use /minttoken command to mint your token.");
                         }
                     } catch (error) {
                         console.error("Error during token creation:", error);
@@ -308,11 +316,11 @@ export async function confirmWalletDeduction({ nftCollectible, nftRegular , toke
                     }
                 } else if(nftCollectible) {
                     try {
-                        const result = await pTimeout(createNFTCollection(tokenMetadata), {milliseconds : 90000});
+                        const result = await pTimeout(createNFTCollection(tokenMetadata, ctx.from.username!), {milliseconds : 90000});
                         if (result) {
                             await ctx.deleteMessage(message_id);
                             await dbFunction(String(ctx.from.username), { nft: true });
-                            await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                            // await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
                             await ctx.reply(result.link);
                             await ctx.reply("Operation completed successfully.");
                         }
@@ -322,11 +330,11 @@ export async function confirmWalletDeduction({ nftCollectible, nftRegular , toke
                     }
                 } else if (nftRegular) {
                     try {
-                        const result = await pTimeout(createRegularNFT(tokenMetadata), {milliseconds : 90000});
+                        const result = await pTimeout(createRegularNFT(tokenMetadata, ctx.from.username!), {milliseconds : 90000});
                         if (result) {
                             await ctx.deleteMessage(message_id);
                             await dbFunction(String(ctx.from.username), { nft: true });
-                            await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
+                            // await ctx.reply(`Deducted SOL amount ${result.minimumRequired/LAMPORTS_PER_SOL}`);
                             await ctx.reply(result.link);
                             await ctx.reply("Operation completed successfully.");
                         }
@@ -366,7 +374,7 @@ export async function hashPassAndStore(ctx : Context, password : string){
         const hashedPassword = await bcrypt.hash(password, salt);
         await userModel.updateOne(
             {userName: ctx.from?.username},
-            {$set: {walletPrivateKeyHash: hashedPassword}}
+            {$set: {passwordHash : hashedPassword}}
         );
     } catch(error) {
         console.error("Error in hashPassAndStore:", error);

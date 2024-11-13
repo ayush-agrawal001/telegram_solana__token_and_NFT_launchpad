@@ -12,60 +12,85 @@ import { metadataImageUrl } from "../imageUpload/imageUpload";
 import { NFTInfo } from "./createNFTCollection";
 import metaDataJsonUrl from "../imageUpload/metadataJsonUpload";
 import { ExtensionType, getMintLen } from "@solana/spl-token";
+import userModel from "../../db/dbSchema";
+import { convertToKeypair } from "../wallet";
 
 config(); 
 
-const devUserKeypair = Keypair.fromSecretKey(new Uint8Array([105, 136, 100, 179, 134, 121, 44, 196, 72, 166, 132, 241, 129, 226, 91, 243, 187, 8, 190, 240, 28, 108, 207, 9, 206, 102, 113, 235, 166, 2, 205, 8, 33, 55, 168, 2, 75, 165, 70, 86, 170, 30, 230, 172, 132, 107, 56, 192, 57, 152, 214, 40, 117, 27, 152, 221, 31, 43, 126, 119, 78, 132, 20, 231]));
-const conn = new Connection(clusterApiUrl("devnet"));
 
-const umi = createUmi(conn);
-
-const umiKeyPair = umi.eddsa.createKeypairFromSecretKey(devUserKeypair.secretKey);
-
-umi
-    .use(keypairIdentity(umiKeyPair))
-    .use(mplTokenMetadata())
-    .use(irysUploader());
-
-// const collectionNftAddress = umiPublicKey("CAbHmRiqhYQEGukx9n4nMFUdteiN74BCMZCSrDsULR7u");
-
-export default async function createRegularNFT(nftInfo : NFTInfo){
-
-    const mintLength = getMintLen([ExtensionType.MetadataPointer]);
-    const minimumRequired = await conn.getMinimumBalanceForRentExemption(mintLength);
-
-
-    async function jsonUrl() {    
-        const data : NFTInfo = {
-            tokenName : nftInfo.tokenName,
-            symbol : nftInfo.symbol,
-            description : nftInfo.description,
-            imgUrl : nftInfo.imgUrl
+export default async function createRegularNFT(nftInfo : NFTInfo, userName : string){
+    try {
+        const user = await userModel.findOne({userName : userName});
+        if (!user) {
+            throw new Error("User not found");
         }
-        const result = await metaDataJsonUrl(data);
-        return await result.cloud.url
+
+        const mnemonic = user.walletMnemonic;
+        if (!mnemonic) {
+            throw new Error("No wallet found for user");
+        }
+
+        const wallet = await convertToKeypair(mnemonic);
+
+        const conn = new Connection(clusterApiUrl("devnet"));
+        
+        const umi = createUmi(conn);
+        
+        const umiKeyPair = umi.eddsa.createKeypairFromSecretKey(wallet.userKeypair.secretKey);
+        
+        umi
+            .use(keypairIdentity(umiKeyPair))
+            .use(mplTokenMetadata())
+            .use(irysUploader());
+
+        const mintLength = getMintLen([ExtensionType.MetadataPointer]);
+        const minimumRequired = await conn.getMinimumBalanceForRentExemption(mintLength);
+
+
+        async function jsonUrl() {    
+            const data : NFTInfo = {
+                tokenName : nftInfo.tokenName,
+                symbol : nftInfo.symbol,
+                description : nftInfo.description,
+                imgUrl : nftInfo.imgUrl,
+                collectibleId : nftInfo.collectibleId || ""
+            }
+            const result = await metaDataJsonUrl(data);
+            return await result.cloud.url
+        }
+
+        const uri = await jsonUrl();
+        const mint = generateSigner(umi);
+        
+        // create and mint NFT
+        await createNft(umi, {
+            mint,
+            name: nftInfo.tokenName,
+            symbol: nftInfo.symbol,
+            uri,
+            updateAuthority: umi.identity.publicKey,
+            sellerFeeBasisPoints: percentAmount(1),
+            // collection: {
+            // key: collectionNftAddress,
+            // verified: false,
+            // },
+        }).sendAndConfirm(umi, { send: { commitment: "finalized" } });
+        
+        let link = getExplorerLink("address", mint.publicKey, "devnet");
+        // console.log(`Token Mint:  ${link}`);
+
+        return {link, minimumRequired}
+
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message === "User not found") {
+                throw new Error("No user found with the provided username");
+            }
+            if (error.message === "No wallet found for user") {
+                throw new Error("User does not have a wallet configured");
+            }
+        }
+        console.error("Error creating NFT:", error);
+        throw new Error("Failed to create NFT. Please try again later.");
     }
-
-    const uri = await jsonUrl();
-    const mint = generateSigner(umi);
-    
-    // create and mint NFT
-    await createNft(umi, {
-        mint,
-        name: nftInfo.tokenName,
-        symbol: nftInfo.symbol,
-        uri,
-        updateAuthority: umi.identity.publicKey,
-        sellerFeeBasisPoints: percentAmount(1),
-        // collection: {
-        // key: collectionNftAddress,
-        // verified: false,
-        // },
-    }).sendAndConfirm(umi, { send: { commitment: "finalized" } });
-    
-    let link = getExplorerLink("address", mint.publicKey, "devnet");
-    console.log(`Token Mint:  ${link}`);
-
-    return {link, minimumRequired}
-
 };

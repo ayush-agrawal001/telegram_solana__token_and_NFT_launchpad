@@ -128,7 +128,7 @@ async function handleStage(ctx: Context, inputText: string | null, next: () => v
                         await ctx.reply("❌ Please enter a valid Solana public key or type 'skip' to proceed without one.");
                         return;
                     } else {
-                        console.log(inputText);
+                        // console.log(inputText);
                         nftInfo.collectibleId = inputText;
                         stage = 5;
                     }

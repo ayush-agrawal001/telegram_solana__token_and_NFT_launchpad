@@ -56,7 +56,7 @@ async function cancelProcess(ctx: Context) {
 
 async function goBack(ctx: Context, next: () => void) {
     stage = Math.max(1, stage - 1);
-    console.log(stage);
+    // console.log(stage);
     await handleStage(ctx, null, next);
 }
 
