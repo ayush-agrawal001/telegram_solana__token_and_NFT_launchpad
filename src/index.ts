@@ -16,7 +16,7 @@ if (!process.env.MONGOOSE_URL) {
     throw Error("No Mongoose url found")
 }
 
-const app : Express = e();
+export const app : Express = e();
 const port = 3000;
 
 mongoose.connect(String(process.env.MONGOOSE_URL));

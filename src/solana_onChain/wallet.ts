@@ -173,7 +173,7 @@ export default async function walletCommands() {
                         await ctx.telegram.sendMessage(`${ctx.chat?.id}`, "Public id :-");
                         
                         setTimeout(() => ctx.reply(`\`${walletKeypair.publicKey.toBase58()}\` tap to copy`, {parse_mode : "MarkdownV2"}), 1000)
-                        setTimeout(() => ctx.reply(`🎉 Your wallet has been created successfully! Start by depositing 1 SOL and use the /createToken command to create your token. 🚀`), 2000)
+                        setTimeout(() => ctx.reply(`🎉 Your wallet has been created successfully! Start by depositing 1 SOL and use the /createtoken command to create your token. 🚀`), 2000)
                         await isWallet(ctx.from.username!);
                     } catch(error) {
                         console.error("Error in ShowPvtKey handler:", error);

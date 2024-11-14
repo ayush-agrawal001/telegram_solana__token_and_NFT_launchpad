@@ -10,6 +10,7 @@ import createNFTcommands from "./solana_onChain/NFTs/createNFTCommands.js";
 import path, {dirname} from "path";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import { app } from "./index.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,7 +23,8 @@ if (!process.env.BOT_TOKEN) {
 }
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
-
+// app.use(await bot.createWebhook({ domain: process.env.WEBHOOK_URL! }));
+await bot.telegram.setWebhook(process.env.WEBHOOK_URL!);
 let isPromptListening = false;
 
 const startMessage = `Welcome to ChainGenie! 🌐
