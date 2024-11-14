@@ -1,4 +1,4 @@
-import userModel from "./dbSchema"
+import userModel from "./dbSchema.js"
 
 interface opt {
     img? : boolean

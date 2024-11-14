@@ -1,20 +1,17 @@
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { conn } from "../..";
+import { conn } from "../../index.js";
 import { createGenericFile, generateSigner, keypairIdentity, percentAmount } from "@metaplex-foundation/umi";
 import { createNft, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
 import { irysUploader } from "@metaplex-foundation/umi-uploader-irys";
 import * as path from "path";
 import { promises as fs, link } from "fs";
 import { getExplorerLink } from "@solana-developers/helpers";
-import { config } from "dotenv";
-import { metadataImageUrl } from "../imageUpload/imageUpload";
-import metaDataJsonUrl from "../imageUpload/metadataJsonUpload";
+import { metadataImageUrl } from "../imageUpload/imageUpload.js";
+import metaDataJsonUrl from "../imageUpload/metadataJsonUpload.js";
 import { ExtensionType, getMintLen } from "@solana/spl-token";
 import { clusterApiUrl, Keypair } from "@solana/web3.js";
-import userModel from "../../db/dbSchema";
-import { convertToKeypair } from "../wallet";
-
-config();
+import userModel from "../../db/dbSchema.js";
+import { convertToKeypair } from "../wallet.js";
 
 // const collectionImagePath = path.resolve(__dirname, "collection.png");
 

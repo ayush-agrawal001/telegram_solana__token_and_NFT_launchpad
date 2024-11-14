@@ -7,6 +7,19 @@ import walletCommands, { handleWalletReply, hashPassAndStore } from "./solana_on
 import tokenCommands from "./solana_onChain/token/createTokenCommands.js";
 import imageUpload from "./solana_onChain/imageUpload/imgUploadCommands.js";
 import createNFTcommands from "./solana_onChain/NFTs/createNFTCommands.js";
+import path, {dirname} from "path";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+dotenv.config({path : path.resolve(__dirname, "../.env")});
+
+if (!process.env.BOT_TOKEN) {
+    throw Error("No bot token found")
+}
 
 export const bot = new Telegraf(process.env.BOT_TOKEN!);
 
@@ -19,9 +32,6 @@ I'm here to make your Web3 journey simple and seamless. From generating wallets 
 let isBotListening = false;
 
 function botCommands(){
-    if (!process.env.BOT_TOKEN) {
-        throw Error("No Bot Api key found")
-    }
     
     bot.command("start", async (ctx) => {
         try {

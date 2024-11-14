@@ -1,10 +1,10 @@
 import { Message } from "telegraf/typings/core/types/typegram";
-import { bot } from "../../botCode";
-import { INSUFFICIENT_BALANCE_MSG } from "../token/createTokenMessages";
-import { balanceFromWallet, convertToKeypair } from "../wallet";
-import { getNFTCollectionMetadata } from "./getNFTCollectioinfo";
-import { getNFTMetadata } from "./getNFTinfo";
-import userModel from "../../db/dbSchema";
+import { bot } from "../../botCode.js";
+import { INSUFFICIENT_BALANCE_MSG } from "../token/createTokenMessages.js";
+import { balanceFromWallet, convertToKeypair } from "../wallet.js";
+import { getNFTCollectionMetadata } from "./getNFTCollectioinfo.js";
+import { getNFTMetadata } from "./getNFTinfo.js";
+import userModel from "../../db/dbSchema.js";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { publicKey } from "@metaplex-foundation/umi";
 
@@ -13,7 +13,7 @@ let optionMessage : Message;
 export default async function createNFTcommands() {
 
     
-    bot.command("createnft" || "createNFT", async ctx => {
+    bot.command("createnft", async ctx => {
         try {
             const user = await userModel.findOne({userName : ctx.from.username})
             if (!user) {

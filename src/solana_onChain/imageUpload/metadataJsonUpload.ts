@@ -1,9 +1,19 @@
 import axios from "axios";
-import { TokenInfo } from "../token/getMetadataFromUser";
-import { config } from "dotenv";
-import { NFTInfo } from "../NFTs/createNFTCollection";
+import { TokenInfo } from "../token/getMetadataFromUser.js";
+import { NFTInfo } from "../NFTs/createNFTCollection.js";
+import path, {dirname} from "path";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 
-config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+dotenv.config({path : path.resolve(__dirname, "../.env")});
+
+if (!process.env.AKORD_API_KEY) {
+    throw Error("No Akord Api key found")
+}
 
 export default async function metaDataJsonUrl(tokenMetadata : TokenInfo | NFTInfo) {
     const data = {

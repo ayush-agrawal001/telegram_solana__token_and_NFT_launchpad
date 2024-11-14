@@ -1,13 +1,13 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
-import walletCommands, { balanceFromWallet, confirmWalletDeduction, convertToKeypair } from "../wallet";
-import { bot } from "../../botCode";
-import { getIsWallet } from "../../db/dbFunction";
+import walletCommands, { balanceFromWallet, confirmWalletDeduction, convertToKeypair } from "../wallet.js";
+import { bot } from "../../botCode.js";
+import { getIsWallet } from "../../db/dbFunction.js";
 import { message } from "telegraf/filters";
-import { mintingToken } from "./createToken";
+import { mintingToken } from "./createToken.js";
 import { config } from "dotenv";
-import { getMetadataFromUser, tokenInfo, TokenInfo } from "./getMetadataFromUser";
-import { ENTER_MINT_AMOUNT_MSG, ENTER_PUBLIC_KEY_MSG, INSUFFICIENT_BALANCE_MSG, INVALID_AMOUNT_MSG, INVALID_PUBLIC_KEY_MSG, MINT_ERROR_MSG, MINT_SUCCESS_MSG, MINT_TOKEN_DESTINATION_MSG, MINTING_PROCESS_ERROR_MSG } from "./createTokenMessages";
-import userModel from "../../db/dbSchema";
+import { getMetadataFromUser, tokenInfo, TokenInfo } from "./getMetadataFromUser.js";
+import { ENTER_MINT_AMOUNT_MSG, ENTER_PUBLIC_KEY_MSG, INSUFFICIENT_BALANCE_MSG, INVALID_AMOUNT_MSG, INVALID_PUBLIC_KEY_MSG, MINT_ERROR_MSG, MINT_SUCCESS_MSG, MINT_TOKEN_DESTINATION_MSG, MINTING_PROCESS_ERROR_MSG } from "./createTokenMessages.js";
+import userModel from "../../db/dbSchema.js";
 
 async function tokenCommands() {
 

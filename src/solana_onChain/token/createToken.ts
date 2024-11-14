@@ -2,22 +2,22 @@ import { getExplorerLink } from "@solana-developers/helpers";
 import { createMint, ExtensionType, getMint, getMintLen, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 import { clusterApiUrl, Keypair, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { createMetadataAccountV3, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata"
-import { TokenInfo } from "./getMetadataFromUser";
-import metaDataJsonUrl from "../imageUpload/metadataJsonUpload";
+import { TokenInfo } from "./getMetadataFromUser.js";
+import metaDataJsonUrl from "../imageUpload/metadataJsonUpload.js";
 import { config } from "dotenv";
-import { conn } from "../../index";
+import { conn } from "../../index.js";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { createNoopSigner } from "@metaplex-foundation/umi";
 import { publicKey as umiPublicKey } from "@metaplex-foundation/umi";
 import { toWeb3JsInstruction } from "@metaplex-foundation/umi-web3js-adapters";
-import userModel from "../../db/dbSchema";
-import wallet, { convertToKeypair } from "../wallet";
+import userModel from "../../db/dbSchema.js";
+import wallet, { convertToKeypair } from "../wallet.js";
 
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
     "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
 );
 
-const umi = createUmi("https://solana-devnet.g.alchemy.com/v2/-uprxyYtb-Ohkjfu2TVyNLMTvvPCJ62k").use(mplTokenMetadata());
+const umi = createUmi(clusterApiUrl("devnet")).use(mplTokenMetadata());
 
 let tokenMint : PublicKey;
 

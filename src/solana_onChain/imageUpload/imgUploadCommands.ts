@@ -1,8 +1,8 @@
 import { message } from "telegraf/filters";
-import { bot } from "../../botCode";
+import { bot } from "../../botCode.js";
 import axios from "axios";
-import dbFunction, { getImageUse } from "../../db/dbFunction";
-import { metadataImageUrl } from "./imageUpload";
+import dbFunction, { getImageUse } from "../../db/dbFunction.js";
+import { metadataImageUrl } from "./imageUpload.js";
 import sharp from "sharp";
 // import { Context } from "telegraf";
 
@@ -42,7 +42,7 @@ export async function uploadImagePermUrl(ctx : any) {
 
 export default function imageUpload(){
     try {
-        bot.command("uploadToArweave", async (ctx) => {
+        bot.command("uploadtoarweave", async (ctx) => {
             try {
                 let imageUse = await getImageUse(String(ctx.from.username));
 

@@ -8,12 +8,12 @@ import { promises as fs } from "fs";
 import { airdropIfRequired, getExplorerLink } from "@solana-developers/helpers";
 import axios from "axios";
 import {config} from "dotenv"
-import { metadataImageUrl } from "../imageUpload/imageUpload";
-import { NFTInfo } from "./createNFTCollection";
-import metaDataJsonUrl from "../imageUpload/metadataJsonUpload";
+import { metadataImageUrl } from "../imageUpload/imageUpload.js";
+import { NFTInfo } from "./createNFTCollection.js";
+import metaDataJsonUrl from "../imageUpload/metadataJsonUpload.js";
 import { ExtensionType, getMintLen } from "@solana/spl-token";
-import userModel from "../../db/dbSchema";
-import { convertToKeypair } from "../wallet";
+import userModel from "../../db/dbSchema.js";
+import { convertToKeypair } from "../wallet.js";
 
 config(); 
 

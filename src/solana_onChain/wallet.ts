@@ -1,17 +1,17 @@
 import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
-import { bot} from "../botCode";
+import { bot} from "../botCode.js";
 import { generateMnemonic, mnemonicToSeedSync } from "bip39";
 import { derivePath } from "ed25519-hd-key";
-import dbFunction, { getIsWallet, isWallet } from "../db/dbFunction";
+import dbFunction, { getIsWallet, isWallet } from "../db/dbFunction.js";
 import { Context } from "telegraf";
 import pTimeout from "p-timeout";
-import { conn } from "..";
-import { creatingTokenMint } from "./token/createToken";
-import { TokenInfo } from "./token/getMetadataFromUser";
-import createNFTCollection, { NFTInfo } from "./NFTs/createNFTCollection";
-import createRegularNFT from "./NFTs/createNFT";
+import { conn } from "../index.js";
+import { creatingTokenMint } from "./token/createToken.js";
+import { TokenInfo } from "./token/getMetadataFromUser.js";
+import createNFTCollection, { NFTInfo } from "./NFTs/createNFTCollection.js";
+import createRegularNFT from "./NFTs/createNFT.js";
 import bcrypt from "bcrypt";
-import userModel from "../db/dbSchema";
+import userModel from "../db/dbSchema.js";
 import { message } from "telegraf/filters";
 import { Message } from "telegraf/typings/core/types/typegram";
 

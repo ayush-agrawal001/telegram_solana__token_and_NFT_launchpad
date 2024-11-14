@@ -1,12 +1,19 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { configDotenv } from "dotenv";
+import path, {dirname} from "path";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 
-configDotenv();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+dotenv.config({path : path.resolve(__dirname, "../.env")});
+
+if (!process.env.GOOGLE_GEMINI_API) {
+    throw Error("No Api key found")
+}
 
 const genAi = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API!);
-if (!process.env.GOOGLE_GEMINI_API) {
-    throw Error("no Api key")
-}
 
 const model = genAi.getGenerativeModel({
     model : "gemini-1.5-flash-exp-0827",
